@@ -83,7 +83,7 @@ func calculate(w http.ResponseWriter, r *http.Request) {
 		}
 		status := http.StatusBadRequest
 		switch calculationError.Code {
-		case calculator.DivisionByZero, calculator.NumberOutOfRange, calculator.NonFiniteResult:
+		case calculator.DivisionByZero, calculator.NumberOutOfRange, calculator.NonFiniteResult, calculator.InvalidArgument:
 			status = http.StatusUnprocessableEntity
 		}
 		writeJSON(w, status, errorResponse{Error: apiError{
