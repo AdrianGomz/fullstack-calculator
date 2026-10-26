@@ -74,3 +74,23 @@ Instructions
         Examples of API calls (if using REST)
         Design decisions or assumptions
 ```
+
+## Prompt 3 — expression input discussion
+
+Date: 2026-10-25  
+Tool: Codex desktop  
+Outcome: discussed expression input and backend parsing for operator precedence.
+
+```text
+Ok, let's start talking about the plan for the api. I want to chat about the body that we receive in the post endpoint. How would we handle if a user want's to do multiple operations at once, let's say something like 2+3+5/4? would it be better that instead of receiving the operation and operands, we receive the string of the operation so we can parse it and also make sure to respect the order of the operations?
+```
+
+## Prompt 4 — approve expression and parenthesis support
+
+Date: 2026-10-25  
+Tool: Codex desktop  
+Outcome: updated the API design, plan, and README with expression input, precedence, and nested parentheses.
+
+```text
+yes let's add support for that in the design and also support for parenthesis.
+```

@@ -44,10 +44,10 @@ With the backend running:
 ```bash
 curl -i http://localhost:8080/api/v1/calculate \
   -H 'Content-Type: application/json' \
-  -d '{"operation":"multiply","operands":[6,7]}'
+  -d '{"expression":"(2+3)*4"}'
 ```
 
-Expected response: HTTP `200` and `{"result":42}`. The required operation names are `add`, `subtract`, `multiply`, and `divide`. See the [API contract](docs/API.md) for error examples and validation rules.
+Expected response: HTTP `200` and `{"result":20}`. Expressions support `+`, `-`, `*`, `/`, unary signs, decimals, and nested parentheses. Standard precedence applies: `2+3+5/4` yields `6.25`; `(2+3+5)/4` yields `2.5`. See the [API contract](docs/API.md) for error examples and validation rules.
 
 ## Planned tests, coverage, and build
 
@@ -78,9 +78,9 @@ Coverage results: **not measured yet**. Before submission, add the measured fron
 ## Design decisions and assumptions
 
 - Go owns arithmetic; the React frontend validates user input and displays backend results.
-- A pure calculation function is separate from HTTP decoding/encoding to simplify unit tests.
+- A pure tokenizer, recursive-descent parser, and evaluator are separate from HTTP decoding/encoding. Only the documented arithmetic grammar is accepted; no general-purpose code evaluation is used.
 - One versioned calculation endpoint avoids duplicating validation and error behavior across four routes.
-- Two operand fields and an operation selector avoid expression parsing and keep the UI within the time budget.
+- One expression field supports multiple operations and parentheses. Go owns full parsing; React checks presence/length and displays server errors with positions. Expressions are limited to 256 characters and 32 nested parenthesis pairs.
 - Numbers use binary floating-point. Decimal rounding artifacts can occur; this is not an exact financial calculator.
 - Calculations are stateless. Accounts, history persistence, and a database are outside the required scope.
 - Optional advanced operations and Docker follow completion of the required features and documentation.
