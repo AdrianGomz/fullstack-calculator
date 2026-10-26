@@ -186,3 +186,33 @@ Outcome: reviewed the current components, styling, header/footer copy, and layou
 ```text
 I made some changes in the app manually update the documentation and the screenshots
 ```
+
+## Prompt 14 — plan optional calculator operations
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: reviewed current grammar and drafted proposed syntax, precedence, domain errors, implementation changes, and tests. Application code was not changed.
+
+```text
+ok, let's make a plan to add support for the optional operations Exponentiation, Square Root, Percentage. Please tell me what changes would we need to do before implementing anything
+```
+
+## Prompt 15 — focus the optional-operation plan on the backend
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: scoped the optional-operation proposal to backend parsing, evaluation, HTTP error mapping, and tests; frontend work is deferred.
+
+```text
+first let's focus on the backend
+```
+
+## Prompt 16 — implement optional operations in the backend
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: implemented exponentiation, square root, and postfix percentage with the agreed precedence/domain rules; added tests and HTTP mapping, verified the built service and fuzz target, and updated documentation. Frontend source was not changed.
+
+```text
+ok continue with the implementation
+```

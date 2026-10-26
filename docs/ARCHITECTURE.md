@@ -4,9 +4,9 @@ The HTTP layer calls `calculator.Evaluate(expression) (float64, error)`. The cal
 
 ## Processing stages
 
-1. **Tokenize** (`backend/internal/calculator/tokenizer.go`): recognize numbers, operators, parentheses, and permitted whitespace. Each token stores its original code-point position. Unsupported characters are rejected.
-2. **Parse** (`backend/internal/calculator/parser.go`): recursive-descent functions build an expression tree. `parseExpression` handles addition/subtraction, `parseTerm` multiplication/division, `parseUnary` signs, and `parsePrimary` numbers/parentheses. Loops build equal-precedence binary operators from left to right. Parentheses recurse into `parseExpression`, with a depth limit.
-3. **Convert and evaluate** (`backend/internal/calculator/calculator.go`): after complete syntax validation, convert number literals in source order, then evaluate the tree. Binary nodes evaluate their left and right children before applying an operator. Division rejects zero, and arithmetic rejects non-finite results. Normalize a final negative zero to zero.
+1. **Tokenize** (`backend/internal/calculator/tokenizer.go`): recognize numbers, operators (including `^` and `%`), the exact name `sqrt`, parentheses, and permitted whitespace. Each token stores its original code-point position. Unsupported characters are rejected.
+2. **Parse** (`backend/internal/calculator/parser.go`): recursive-descent functions build an expression tree. `parseExpression` handles addition/subtraction, `parseTerm` multiplication/division, `parseUnary` signs, `parsePower` right-associative exponentiation, `parsePostfix` percentage, and `parsePrimary` numbers/parentheses/square-root calls. Loops build equal-precedence binary operators from left to right. Parentheses and square-root arguments recurse into `parseExpression`, sharing the 32-level limit. A power exponent recurses into `parseUnary`, permitting `2^-3` while interpreting `-2^2` as `-(2^2)`.
+3. **Convert and evaluate** (`backend/internal/calculator/calculator.go`): after complete syntax validation, convert number literals in source order, then evaluate the tree. Binary nodes evaluate their left and right children before applying an operator. Unary nodes implement signs, percentage (`x/100`), and square root. Binary nodes also implement power using `math.Pow`. Division rejects zero; square root and powers validate their real-number domains; arithmetic rejects non-finite results. Normalize a final negative zero to zero.
 
 The tree for `2+3*4` has addition at its root and multiplication as its right child. The tree for `(2+3)*4` has multiplication at its root and addition as its left child. The evaluator follows this structure, so it does not need its own precedence rules.
 
@@ -22,7 +22,7 @@ The HTTP handler checks method, Content-Type, body size, and the exact JSON sche
 
 The calculator validates expression length, tokenizes, parses the entire input, converts literals, and evaluates. Parsing first ensures `1/0+` returns a syntax error instead of a division error. Tokens/nodes retain positions, allowing errors to point into the original expression, including whitespace. A position of zero is preserved in JSON by using a pointer rather than an omitted zero-valued integer.
 
-Limits are 4096 body bytes, 256 expression code points, and 32 nested parentheses. These bound allocation, parser recursion, and tree evaluation. Binary chains and unary signs are parsed using loops.
+Limits are 4096 body bytes, 256 expression code points, and 32 nested parentheses. These bound allocation, parser recursion, and tree evaluation. Left-associative binary chains and unary signs are parsed using loops. Power chains recurse to the right and remain bounded by the expression length; tests exercise maximum-length chains and mixed grouping/function nesting.
 
 ## Tests
 
@@ -31,7 +31,7 @@ Limits are 4096 body bytes, 256 expression code points, and 32 nested parenthese
 - `calculate_test.go`: HTTP request validation, results, error mapping, position serialization, and body/length/depth boundaries.
 - Existing route/configuration tests continue to cover the server foundation.
 
-No general-purpose code evaluation is used. Exponentiation, functions, scientific notation, implicit multiplication, and percentages require an explicit grammar extension before they can be accepted.
+No general-purpose code evaluation is used. Supported extensions are `^`, `sqrt(...)`, and postfix `%`. Scientific notation, implicit multiplication, other functions, and `**` remain unsupported. Percentage has no context-dependent base; `0^0`, zero to a negative exponent, negative square roots, and negative bases with noninteger exponents return `422 INVALID_ARGUMENT`.
 
 ## Frontend
 

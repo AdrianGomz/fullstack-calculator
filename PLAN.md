@@ -9,7 +9,7 @@ Build a full-stack calculator with a React frontend that calls a Go REST microse
 
 The assignment requires addition, subtraction, multiplication, and division; frontend and backend validation; a responsive UI; JSON responses; unit tests for both layers; coverage reports; setup/API/design documentation; and submission of a Git repository link and prompts used.
 
-Exponentiation, square root, percentage, and Docker are optional. Implement them only after the required features, tests, and documentation are complete. Although the objective mentions advanced operations, the detailed requirements explicitly mark them optional; document any omissions in the final README.
+The assignment treats exponentiation, square root, percentage, and Docker as optional. The three arithmetic operations are now implemented in the backend after completion of the required functionality. Dedicated frontend controls remain deferred; Docker is not implemented.
 
 User-approved extension: evaluate complete expressions, including nested parentheses. `2+3+5/4` yields `6.25`; `(2+3+5)/4` yields `2.5`.
 
@@ -108,16 +108,96 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.2%, HTTP coverage is 95.5%, and overall backend coverage is 87.9%. A five-second fuzz run passed 512,366 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 26 tests pass, with 97.95% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 26 tests pass, with 97.95% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
-Define semantics before implementing an optional operation and extend tests and API documentation together:
+### Backend extension — implemented
 
-- Exponentiation: define syntax, associativity, precedence relative to unary signs, and `0^0` behavior; reject non-real/non-finite results.
-- Square root: define function syntax and require a nonnegative argument.
-- Percentage: define expression syntax with `x / 100` semantics; this is not the contextual percentage behavior of some physical calculators.
-- Docker: after the ordinary local workflow works, use a multi-stage build and either serve the built frontend from Go in one container or document a Compose setup. Verify build/run instructions before advertising support.
+The agreed extension is implemented in the backend, including parser/evaluator tests and HTTP error mapping. API.md describes the supported contract. Frontend controls remain deferred.
+
+#### Syntax and semantics
+
+| Operation | Expression syntax | Implemented behavior |
+| --- | --- | --- |
+| Exponentiation | `2^3` | Returns `8`. Right-associative: `2^3^2` means `2^(3^2)` and returns `512`. |
+| Square root | `sqrt(9)` | Returns `3`. Requires parentheses and accepts a complete expression, such as `sqrt(4+5)`. Only the exact lowercase function name is supported. |
+| Percentage | `25%` | Postfix conversion to a fraction: `25/100`, returning `0.25`. `%` is not modulo. |
+
+Percentage is deliberately context-independent: `200*10%` is `20`, while `200+10%` is `200.1`. To increase 200 by ten percent, write `200*(1+10%)`. The evaluator does not infer a percentage base from the surrounding addition/subtraction.
+
+The implemented precedence rules are:
+
+- Parentheses and square-root calls form primary expressions.
+- Postfix `%` binds tighter than exponentiation: `2^3%` means `2^(3/100)`; `(2^3)%` is `0.08`.
+- Exponentiation binds tighter than a leading sign: `-2^2` is `-4`, while `(-2)^2` is `4`. Negative exponents are accepted: `2^-3` is `0.125`.
+- Multiplication/division and addition/subtraction retain their current precedence and left associativity.
+- Accept one `%` per postfix expression; reject `10%%`. Explicit nesting such as `(10%)%` is allowed and means repeated division by 100.
+
+The grammar extends the existing recursive-descent parser:
+
+```text
+expression = term { ("+" | "-") term }
+term       = unary { ("*" | "/") unary }
+unary      = { "+" | "-" } power
+power      = postfix [ "^" unary ]
+postfix    = primary [ "%" ]
+primary    = number | "(" expression ")" | "sqrt" "(" expression ")"
+```
+
+Number syntax remains unchanged. The exponent's reference to `unary` permits signed exponents and right-associative powers without changing `2*-3` or chained unary signs.
+
+#### Changes by backend layer
+
+| Layer | Implemented changes |
+| --- | --- |
+| Tokenizer | Recognize `^`, `%`, and the exact identifier `sqrt`, preserving source positions. Reject other names and retain the existing decimal/whitespace rules. |
+| Parser | Add `parsePower` and `parsePostfix`; make `parseUnary` consume a power. Extend `parsePrimary` for the parenthesized square-root call. Count square-root parentheses toward the existing nesting limit. |
+| Expression tree | Reuse binary nodes for power and unary nodes for percentage/square root; each operation still carries its token position. No new design pattern or operator registry is required. |
+| Evaluator | Add power and square root using Go's `math.Pow` and `math.Sqrt`; implement percentage as division by 100. Check domains and finite intermediate results. |
+| HTTP handler | Preserve the endpoint, JSON request/response shapes, and positioned errors. Map a new `INVALID_ARGUMENT` domain error to HTTP `422`. |
+| Tests/docs | Extend tokenizer/parser/evaluator and HTTP tests; update API grammar, supported syntax, numeric rules, and examples once implemented. |
+
+The request remains `{"expression":"sqrt(16)+2^3+50%"}` and the successful response is `{"result":12.5}`. Parsing and domain evaluation remain separate: malformed syntax is rejected before arithmetic.
+
+#### Domain and limit rules
+
+- Keep real-number `float64` arithmetic, finite-result checks, and final negative-zero normalization.
+- Return `422 INVALID_ARGUMENT` for a negative square-root argument, a negative power base with a noninteger exponent, `0^0`, or zero raised to a negative exponent. Rejecting `0^0` is an explicit agreed product choice.
+- Point domain errors to the beginning of `sqrt` or to `^`; retain zero-based code-point offsets.
+- Return the existing `422 NON_FINITE_RESULT` for overflow such as `2^1024`.
+- Preserve the 4096-byte request limit, 256-code-point expression limit, and 32-level parenthesis limit. Test the additional recursion from power chains and combinations with nested function calls; it must remain bounded by expression length.
+- Keep scientific notation, implicit multiplication, alternate power syntax (`**`), other function names, and complex results outside this extension.
+
+#### Backend acceptance examples
+
+| Expression | Result/error |
+| --- | --- |
+| `2^3` | `8` |
+| `2^3^2` | `512` |
+| `-2^2` | `-4` |
+| `(-2)^2` | `4` |
+| `2^-3` | `0.125` |
+| `sqrt(4+5)` | `3` |
+| `sqrt(sqrt(16))` | `2` |
+| `200*10%` | `20` |
+| `200+10%` | `200.1` |
+| `(2^3)%` | `0.08` |
+| `sqrt(16)+2^3+50%` | `12.5` |
+| `sqrt(-1)` | `INVALID_ARGUMENT` at position `0` |
+| `(-2)^0.5` | `INVALID_ARGUMENT` at position `4` |
+| `0^0`, `0^-1` | `INVALID_ARGUMENT` at position `1` |
+| `2^1024` | `NON_FINITE_RESULT` at position `1` |
+| `sqrt(4)+` | `INVALID_EXPRESSION` at end of input |
+| `10%%`, `2^`, `sqrt()`, `sqrt 9` | `INVALID_EXPRESSION` |
+
+Retain all existing acceptance tests, including subtraction/unary signs, syntax-before-domain errors, input boundaries, and division by zero. Add HTTP checks for domain error status/code/positions and fuzz seeds covering each new syntax form.
+
+Verification complete: all backend tests pass with the race detector, `go vet` and the standalone build pass, the fuzz run passed 525,169 executions, and live HTTP checks passed twelve calculations and seven positioned errors. No frontend source changes are included in this milestone.
+
+### Other optional work
+
+Docker: after the ordinary local workflow works, use a multi-stage build and either serve the built frontend from Go in one container or document a Compose setup. Verify build/run instructions before advertising support.
 
 ## Delivery checklist
 

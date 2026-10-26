@@ -2,7 +2,7 @@
 
 A React + TypeScript calculator backed by a Go REST service.
 
-**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, unary signs, decimals, and nested parentheses. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The responsive frontend supports keyboard entry, an on-screen keypad, positioned errors, loading feedback, and API failure recovery.
+**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, exponentiation (`^`), square root (`sqrt(...)`), postfix percentage (`%`), unary signs, decimals, and nested parentheses. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The responsive frontend supports keyboard entry, an on-screen keypad, positioned errors, loading feedback, and API failure recovery.
 
 ## Documentation
 
@@ -55,6 +55,8 @@ Enter an expression and press Enter or `=`. The keypad inserts at the cursor and
 
 The page contains a compact “Calculator” wordmark, a centered calculator card, and the footer credit “By: Isaac Gomez Ocon.” on both desktop and mobile. `App` renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
 
+The backend also accepts typed expressions such as `sqrt(16)+2^3+50%`, returning `12.5`. The keypad/help text still cover the basic operations; frontend controls for these additions are deferred.
+
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 
 ![Calculator desktop preview](docs/screenshots/desktop.png)
@@ -93,7 +95,7 @@ For `10/(3-3)`, the API returns HTTP `422`:
 }
 ```
 
-Positions are zero-based code-point offsets in the original expression. Syntax and schema errors return `400`; oversized bodies return `413`; unsupported Content-Type returns `415`. Unsupported methods return `405` with an `Allow` header, and unknown paths return `404`.
+Positions are zero-based code-point offsets in the original expression. Domain errors, including `sqrt(-1)`, `0^0`, and `(-2)^0.5`, return `422 INVALID_ARGUMENT`. Syntax and schema errors return `400`; oversized bodies return `413`; unsupported Content-Type returns `415`. Unsupported methods return `405` with an `Allow` header, and unknown paths return `404`.
 
 Requests are limited to 4096 bytes, expressions to 256 characters, and parenthesis nesting to 32. Only the exact `expression` key is accepted; unknown/duplicate fields, nulls, and trailing JSON are rejected. See the [API contract](docs/API.md) for details.
 
@@ -111,9 +113,9 @@ go vet ./...
 
 Tests cover tokenization, tree structure, precedence, associativity, nested parentheses, unary signs, decimals, error positions, numeric guards, request validation, input limits, routing, and port configuration. Coverage files are generated locally and ignored by Git.
 
-Verified on Go 1.25.4: `go test -race ./... -coverprofile=coverage.out`, `go vet ./...`, and the standalone build pass. Statement coverage is **87.9% overall**, **99.2% for the calculator package**, and **95.5% for HTTP**. The server entry point/lifecycle is checked separately over HTTP rather than included in unit-test coverage.
+Verified on Go 1.25.4: `go test -race ./... -coverprofile=coverage.out`, `go vet ./...`, and the standalone build pass. Statement coverage is **89.8% overall**, **99.4% for the calculator package**, and **95.5% for HTTP**. The server entry point/lifecycle is checked separately over HTTP rather than included in unit-test coverage.
 
-A five-second fuzz run completed **512,366 executions** without failures. A live test against the built server verified health, six calculations, five positioned expression errors, three request errors, and clean SIGTERM shutdown. The frontend was subsequently checked against the real backend in a browser; see frontend verification below.
+The latest five-second fuzz run completed **525,169 executions** without failures. A live test against the updated backend verified health, twelve calculations (including all new operations), seven positioned errors, and clean SIGTERM shutdown. The frontend was subsequently checked against the real backend in a browser; see frontend verification below.
 
 To repeat the short fuzz check from `backend/`:
 
@@ -149,7 +151,7 @@ Browser verification used Vite with the real Go backend: precedence, parentheses
 
 ## Remaining delivery work
 
-Publish the repository and coverage artifacts for evaluation. Exponentiation, square root, percentage, and Docker remain optional future work.
+Publish the repository and coverage artifacts for evaluation. The optional arithmetic operations are implemented in the backend; corresponding keypad/help updates remain frontend work. Docker remains optional future work.
 
 ## Design decisions and assumptions
 

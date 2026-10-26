@@ -180,4 +180,4 @@ The last implementation run passed 26 client/component tests, TypeScript checks,
 
 The documentation refresh reran all 26 tests and the TypeScript/production build successfully. Browser checks confirmed the example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 
-Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. Optional advanced operations, persistent history, and production deployment are outside the current implementation.
+Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. The backend now supports `^`, `sqrt(...)`, and postfix `%` through the same expression request. These can be typed into the existing field, but dedicated keypad buttons/help updates have not been implemented in this backend milestone. Persistent history and production deployment remain outside the current implementation.
