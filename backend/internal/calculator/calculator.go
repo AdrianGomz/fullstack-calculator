@@ -17,6 +17,7 @@ const (
 	NumberOutOfRange    = "NUMBER_OUT_OF_RANGE"
 	DivisionByZero      = "DIVISION_BY_ZERO"
 	NonFiniteResult     = "NON_FINITE_RESULT"
+	InvalidArgument     = "INVALID_ARGUMENT"
 )
 
 // Error identifies a problem at a zero-based code-point offset in the input.
@@ -34,7 +35,7 @@ func expressionError(code, message string, position int) *Error {
 }
 
 // Evaluate validates the entire expression before performing arithmetic.
-// It supports +, -, *, /, unary signs, decimal numbers, and parentheses.
+// It supports +, -, *, /, ^, postfix %, sqrt(...), unary signs, and parentheses.
 func Evaluate(expression string) (float64, error) {
 	if utf8.RuneCountInString(expression) > MaxExpressionLength {
 		return 0, expressionError(ExpressionTooLong, "Expression exceeds 256 characters.", MaxExpressionLength)
@@ -92,8 +93,16 @@ func (n *unaryNode) evaluate() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if n.operator.kind == '-' {
+	switch n.operator.kind {
+	case '-':
 		value = -value
+	case '%':
+		value /= 100
+	case tokenSqrt:
+		if value < 0 {
+			return 0, expressionError(InvalidArgument, "Square root requires a nonnegative argument.", n.operator.position)
+		}
+		value = math.Sqrt(value)
 	}
 	return value, nil
 }
@@ -125,6 +134,14 @@ func (n *binaryNode) evaluate() (float64, error) {
 			return 0, expressionError(DivisionByZero, "Cannot divide by zero.", n.operator.position)
 		}
 		result = left / right
+	case '^':
+		if left == 0 && right <= 0 {
+			return 0, expressionError(InvalidArgument, "Zero requires a positive exponent.", n.operator.position)
+		}
+		if left < 0 && math.Trunc(right) != right {
+			return 0, expressionError(InvalidArgument, "A negative base requires an integer exponent.", n.operator.position)
+		}
+		result = math.Pow(left, right)
 	}
 	if math.IsInf(result, 0) || math.IsNaN(result) {
 		return 0, expressionError(NonFiniteResult, "Calculation exceeds the supported numeric range.", n.operator.position)

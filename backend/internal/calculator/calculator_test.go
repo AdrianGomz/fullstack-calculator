@@ -17,6 +17,17 @@ func TestEvaluate(t *testing.T) {
 		{"8/4*2", 4}, {"10-3-2", 5}, {"8/2/2", 2}, {"-(2+3)*4", -20},
 		{"2*-3", -6}, {"2--3", 5}, {"--2", 2}, {"+-+2", -2}, {"+2", 2},
 		{" .5 + 5. ", 5.5}, {"001.25*4", 5}, {"\t2\n+\r3 ", 5},
+		{"2^3", 8}, {"2^3^2", 512}, {"(2^3)^2", 64}, {"-2^2", -4},
+		{"(-2)^2", 4}, {"(-2)^3", -8}, {"2^-3", .125}, {"2^-2^2", .0625},
+		{"2^--3", 8}, {"0^2", 0}, {"2^0", 1}, {"9^.5", 3}, {"2^-1075", 0},
+		{"sqrt(4+5)", 3}, {"sqrt(sqrt(16))", 2}, {"sqrt ( 9 )", 3},
+		{"sqrt(0)", 0}, {"sqrt(-0)", 0}, {"sqrt(9)^2", 9}, {"-sqrt(9)", -3},
+		{"25%", .25}, {"200*10%", 20}, {"200+10%", 200.1}, {"200*(1+10%)", 220},
+		{"(2^3)%", .08}, {"(10%)%", .001}, {"-25%", -.25}, {"sqrt(25%)", .5},
+		{"sqrt(9)%", .03}, {"2^3%", math.Pow(2, .03)}, {"sqrt(16)+2^3+50%", 12.5},
+		{strings.Repeat("1^", 127) + "1", 1},
+		{strings.Repeat("(", 32) + strings.Repeat("1^", 95) + "1" + strings.Repeat(")", 32), 1},
+		{strings.Repeat("sqrt(", 32) + "1" + strings.Repeat(")", 32), 1},
 		{"0", 0}, {"-0", 0}, {"-0*4", 0}, {"0.1+0.2", .3}, {"1/.00001", 100000},
 		{strings.Repeat("(", 32) + "1" + strings.Repeat(")", 32), 1},
 		{strings.Repeat("-", 255) + "1", -1},
@@ -45,13 +56,28 @@ func TestEvaluateErrors(t *testing.T) {
 		input, code string
 		position    int
 	}{
+		{"sqrt(-1)", InvalidArgument, 0}, {"(-2)^0.5", InvalidArgument, 4},
+		{"0^0", InvalidArgument, 1}, {"0^-1", InvalidArgument, 1}, {"0^-0", InvalidArgument, 1},
+		{"(-0)^-2", InvalidArgument, 4}, {"2^1024", NonFiniteResult, 1},
+		{"(-2)^1024", NonFiniteResult, 4}, {"(2^1024)%", NonFiniteResult, 2},
+		{"sqrt(-1)+", InvalidExpression, 9}, {"sqrt(1/0)", DivisionByZero, 6},
+		{"2^sqrt(-1)", InvalidArgument, 2}, {"sqrt(-1)^0", InvalidArgument, 0},
+		{"sqrt()", InvalidExpression, 5}, {"sqrt 9", InvalidExpression, 5},
+		{"sqrt", InvalidExpression, 4}, {"sqrt(4", InvalidExpression, 6},
+		{"sqrt(4)2", InvalidExpression, 7}, {"sqrt(4,9)", InvalidExpression, 6},
+		{"SQRT(9)", InvalidExpression, 0}, {"sqrt2(9)", InvalidExpression, 0},
+		{"sqrt_x(9)", InvalidExpression, 0}, {"√9", InvalidExpression, 0},
+		{"10%%", InvalidExpression, 3}, {"%10", InvalidExpression, 0},
+		{"2^", InvalidExpression, 2}, {"2^^3", InvalidExpression, 2}, {"2^3^", InvalidExpression, 4},
+		{strings.Repeat("sqrt(", 33) + "1" + strings.Repeat(")", 33), ExpressionTooDeep, 164},
+		{strings.Repeat("(", 16) + strings.Repeat("sqrt(", 17) + "1" + strings.Repeat(")", 33), ExpressionTooDeep, 100},
 		{"", InvalidExpression, 0}, {"  ", InvalidExpression, 2}, {"()", InvalidExpression, 1},
 		{"(2+3", InvalidExpression, 4}, {"2+3)", InvalidExpression, 3}, {"2(3+4)", InvalidExpression, 1},
 		{"(2)(3)", InvalidExpression, 3}, {"2+", InvalidExpression, 2}, {"2**3", InvalidExpression, 2},
 		{"1 2", InvalidExpression, 2}, {"1 .5", InvalidExpression, 2}, {"1/0+", InvalidExpression, 4},
 		{".", InvalidExpression, 0}, {"1..2", InvalidExpression, 2}, {"12abc", InvalidExpression, 2},
-		{"1e3", InvalidExpression, 1}, {"2^3", InvalidExpression, 1}, {"50%", InvalidExpression, 2},
-		{"sqrt(4)", InvalidExpression, 0}, {"2,5", InvalidExpression, 1}, {"NaN", InvalidExpression, 0},
+		{"1e3", InvalidExpression, 1},
+		{"2,5", InvalidExpression, 1}, {"NaN", InvalidExpression, 0},
 		{"1+💡", InvalidExpression, 2}, {"１+2", InvalidExpression, 0}, {"2\u00a0+3", InvalidExpression, 1},
 		{"1\x00+2", InvalidExpression, 1}, {"---", InvalidExpression, 3}, {"*2", InvalidExpression, 0},
 		{"10/(3-3)", DivisionByZero, 2}, {"1/-0", DivisionByZero, 1},
@@ -102,7 +128,7 @@ func TestNumericRangeGuards(t *testing.T) {
 }
 
 func FuzzEvaluate(f *testing.F) {
-	for _, input := range []string{"2+3*4", "(2+3)/4", "1/0+", "--2", "💡", "", strings.Repeat("(", 33)} {
+	for _, input := range []string{"2+3*4", "(2+3)/4", "2^3^2", "sqrt(-1)", "sqrt(4)+25%", "10%%", "0^-1", "-2^2", "2^1024", "1/0+", "--2", "💡", "", strings.Repeat("(", 33)} {
 		f.Add(input)
 	}
 	f.Fuzz(func(t *testing.T, input string) {

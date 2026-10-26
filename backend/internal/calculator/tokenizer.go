@@ -3,6 +3,7 @@ package calculator
 const (
 	tokenEnd    rune = 0
 	tokenNumber rune = 'n'
+	tokenSqrt   rune = 's'
 )
 
 type token struct {
@@ -19,11 +20,21 @@ func tokenize(expression string) ([]token, error) {
 		switch current {
 		case ' ', '\t', '\r', '\n':
 			i++
-		case '+', '-', '*', '/', '(', ')':
+		case '+', '-', '*', '/', '^', '%', '(', ')':
 			tokens = append(tokens, token{kind: current, position: i})
 			i++
 		default:
 			start := i
+			if isLetter(current) {
+				for i < len(input) && (isLetter(input[i]) || isDigit(input[i]) || input[i] == '_') {
+					i++
+				}
+				if string(input[start:i]) != "sqrt" {
+					return nil, expressionError(InvalidExpression, "Unsupported name in expression.", start)
+				}
+				tokens = append(tokens, token{kind: tokenSqrt, text: "sqrt", position: start})
+				continue
+			}
 			if !isDigit(current) && current != '.' {
 				return nil, expressionError(InvalidExpression, "Unsupported character in expression.", i)
 			}
@@ -49,3 +60,7 @@ func tokenize(expression string) ([]token, error) {
 }
 
 func isDigit(character rune) bool { return character >= '0' && character <= '9' }
+
+func isLetter(character rune) bool {
+	return character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z'
+}
