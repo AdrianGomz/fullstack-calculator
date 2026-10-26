@@ -1,45 +1,45 @@
 # Full-stack calculator
 
-A planned React + TypeScript frontend backed by a Go REST calculator service.
+A Go REST service with a planned React + TypeScript frontend.
 
-**Current status:** this repository folder contains planning documents only. The application, dependency manifests, tests, coverage reports, and deployment artifacts have not been created. Commands below are the intended workflow after implementation, not instructions for a runnable application today.
+**Current status:** the backend foundation runs. It provides a health check, JSON routing errors, configurable port, and graceful shutdown. Calculation currently returns `501 NOT_IMPLEMENTED`; request validation, expression parsing, arithmetic, and the frontend are the next milestones.
 
 ## Documentation
 
 - [Implementation plan](PLAN.md): scope, architecture, milestones, testing, and delivery checklist.
-- [API contract](docs/API.md): request/response formats, validation, errors, and examples.
+- [API contract](docs/API.md): current endpoints and the planned expression contract.
 - [Prompt log](PROMPT_LOG.md): user prompts supplied for this app.
 
-## Planned setup and local development
+## Run the backend
 
-Prerequisites: Node.js/npm, Go, and Git. Select supported versions at implementation time and record the exact tested versions here and in the relevant project configuration. No database, account, or external API credentials are planned.
+Requires Go 1.25 or newer. Tested locally with Go 1.25.4 on macOS/arm64. The backend uses only the Go standard library, so no dependency installation, database, credentials, or `.env` file is needed.
 
-Once code and manifests exist, install frontend dependencies from the committed lockfile:
-
-```bash
-cd frontend
-npm ci
-```
-
-Run the backend in one terminal from the repository root:
+From the repository root:
 
 ```bash
 cd backend
 go run ./cmd/server
 ```
 
-The planned backend listens on port `8080` by default; support a `PORT` environment variable override. Run the frontend in a second terminal from the repository root:
+The server listens on port `8080` on all network interfaces. Override the port when needed:
 
 ```bash
-cd frontend
-npm run dev
+PORT=9090 go run ./cmd/server
 ```
 
-Configure the frontend development server at `http://localhost:5173` and proxy `/api` to `http://localhost:8080`. Update the proxy target if the backend port changes. Stop each server with Ctrl+C.
+`PORT` must be an integer from 1 through 65535. Invalid configuration or an occupied port causes a startup error and a nonzero exit. Stop the server with Ctrl+C; it allows up to five seconds for active requests to finish. The service uses standard HTTP read/write/idle timeouts and logs startup, shutdown, and failures.
 
-## Planned API usage
+## Try the current endpoints
 
-With the backend running:
+Health check:
+
+```bash
+curl -i http://localhost:8080/health
+```
+
+Expected: HTTP `200`, JSON `{"status":"ok"}`. This reports that the HTTP service is running; it does not indicate that calculation is implemented.
+
+Calculation placeholder:
 
 ```bash
 curl -i http://localhost:8080/api/v1/calculate \
@@ -47,11 +47,22 @@ curl -i http://localhost:8080/api/v1/calculate \
   -d '{"expression":"(2+3)*4"}'
 ```
 
-Expected response: HTTP `200` and `{"result":20}`. Expressions support `+`, `-`, `*`, `/`, unary signs, decimals, and nested parentheses. Standard precedence applies: `2+3+5/4` yields `6.25`; `(2+3+5)/4` yields `2.5`. See the [API contract](docs/API.md) for error examples and validation rules.
+Expected **currently**: HTTP `501` and:
 
-## Planned tests, coverage, and build
+```json
+{
+  "error": {
+    "code": "NOT_IMPLEMENTED",
+    "message": "Expression calculation is not implemented yet."
+  }
+}
+```
 
-Backend, from the repository root:
+The placeholder does not parse or validate the body. Unsupported methods at known endpoints return `405` with an `Allow` header; unknown paths return `404`. Endpoint responses use JSON.
+
+## Backend checks and coverage
+
+From the repository root:
 
 ```bash
 cd backend
@@ -61,35 +72,38 @@ go tool cover -html=coverage.out -o coverage.html
 go vet ./...
 ```
 
-Frontend, from the repository root:
+Tests cover default/custom/invalid port configuration, health responses, the calculation placeholder, method restrictions, and unknown paths. Coverage files are generated locally and ignored by Git. Whole-application coverage is not final while the parser and frontend are pending.
+
+Verified on Go 1.25.4: `go test ./...`, `go vet ./...`, and the standalone build pass. Foundation statement coverage is **53.7% overall** and **95.2% for the HTTP package**; port configuration is fully covered, while the entry point/server lifecycle are verified separately by a live smoke test. That check exercised health, the calculation placeholder, 404/405 responses, an occupied port, invalid `PORT`, and clean SIGTERM shutdown. This is foundation coverage, not a report for the completed calculator.
+
+To build a standalone executable from `backend/`:
 
 ```bash
-cd frontend
-npm run test -- --run
-npm run test:coverage
-npm run typecheck
-npm run build
+go build -o bin/calculator ./cmd/server
+./bin/calculator
 ```
 
-Define these frontend scripts during implementation using Vitest, React Testing Library, a compatible coverage provider, TypeScript, and Vite. Configure frontend coverage to include application source files, including untested files, and produce text and HTML reports in `frontend/coverage/`. Go coverage artifacts will be `backend/coverage.out` and `backend/coverage.html`.
+## Next implementation steps
 
-Coverage results: **not measured yet**. Before submission, add the measured frontend and backend coverage summaries and provide reports as submission artifacts or CI artifacts. Do not treat a coverage percentage as a substitute for checking edge cases or running the frontend against the real backend.
+1. Add bounded JSON request decoding and expression validation.
+2. Implement and test the tokenizer, recursive-descent parser, and evaluator, including precedence, unary signs, and nested parentheses.
+3. Add the React/TypeScript frontend and connect it through a Vite `/api` proxy to port 8080.
+4. Run the full acceptance checks and publish measured coverage and the repository link.
+
+The planned calculation response for `{"expression":"(2+3)*4"}` is `{"result":20}`. See the [API contract](docs/API.md) for grammar, limits, and errors. Frontend setup commands will be added when its manifests and scripts exist.
 
 ## Design decisions and assumptions
 
-- Go owns arithmetic; the React frontend validates user input and displays backend results.
-- A pure tokenizer, recursive-descent parser, and evaluator are separate from HTTP decoding/encoding. Only the documented arithmetic grammar is accepted; no general-purpose code evaluation is used.
-- One versioned calculation endpoint avoids duplicating validation and error behavior across four routes.
-- One expression field supports multiple operations and parentheses. Go owns full parsing; React checks presence/length and displays server errors with positions. Expressions are limited to 256 characters and 32 nested parenthesis pairs.
-- Numbers use binary floating-point. Decimal rounding artifacts can occur; this is not an exact financial calculator.
-- Calculations are stateless. Accounts, history persistence, and a database are outside the required scope.
-- Optional advanced operations and Docker follow completion of the required features and documentation.
+- The server entry point owns configuration, HTTP timeouts, signals, and shutdown; `internal/httpapi` constructs routes independently of a listener for testing.
+- Go owns arithmetic. A separate tokenizer/parser/evaluator will accept only the documented arithmetic grammar.
+- One expression field supports multiple operators and parentheses. Go will enforce full validation; React will check presence/length and show server errors with positions.
+- Binary floating-point can produce decimal rounding artifacts; the application is not intended for exact financial arithmetic.
+- Calculations are stateless; no accounts or database are required.
+- Advanced operations and Docker follow completion of the required functionality.
 
 ## Submission status
 
-- Implementation and verification: pending.
-- Git repository initialization and publication: pending.
-- Repository URL: pending; record the actual accessible URL after pushing.
-- Prompt record: [PROMPT_LOG.md](PROMPT_LOG.md); append prompts from later work and other AI tools before submission.
-
-Before handoff, verify these setup commands from a fresh checkout and replace the planned status with actual results, supported versions, implemented features, and known limitations.
+- Backend foundation: implemented; expression calculation and frontend: pending.
+- Git repository: initialized locally; publication and evaluator access: pending.
+- Repository URL: pending.
+- Prompt record: [PROMPT_LOG.md](PROMPT_LOG.md); append prompts used in subsequent work and other AI tools.

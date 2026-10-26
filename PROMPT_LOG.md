@@ -94,3 +94,13 @@ Outcome: updated the API design, plan, and README with expression input, precede
 ```text
 yes let's add support for that in the design and also support for parenthesis.
 ```
+
+## Prompt 5 — implement the backend foundation
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: implemented the Go service foundation, health endpoint, calculation placeholder, configuration, shutdown, foundation tests, and updated run documentation.
+
+```text
+ok let's continue with the implementation of the plan for the backend application. For now let's focus on the basics to run the app and then we can go in depth with the implementation of the complex logic.
+```

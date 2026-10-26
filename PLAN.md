@@ -1,7 +1,7 @@
 # Calculator application plan
 
 Date: 2026-10-25  
-Status: planning only; application code, tests, coverage, and remote repository are not yet created.
+Status: backend foundation implemented (Go module, HTTP server, health route, calculation placeholder, and foundation tests). Expression validation/evaluation and frontend remain planned; remote publication is pending.
 
 ## Objective and scope
 
@@ -99,7 +99,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-No tests have been run yet because this is a documentation-only planning deliverable.
+Foundation tests pass for port configuration, health responses, method restrictions, unknown routes, and the calculation placeholder. Build and `go vet` pass. A live smoke test verified HTTP responses, startup failures, and SIGTERM shutdown. Current coverage is 53.7% overall / 95.2% for HTTP; parser/evaluator and frontend tests remain future work.
 
 ## Optional features
 
@@ -122,4 +122,4 @@ Define semantics before implementing an optional operation and extend tests and 
 - [ ] Commit the solution, push to the user's chosen Git host, and verify evaluator access.
 - [ ] Add the actual repository URL and share it for evaluation with the prompt log.
 
-Creating a remote repository, implementing code, and publishing the solution are later assignment steps; the current requested output is this plan and its supporting documentation.
+Current milestone: a runnable backend foundation. Next implement the expression request validation and parser/evaluator, followed by the frontend and final delivery checks.

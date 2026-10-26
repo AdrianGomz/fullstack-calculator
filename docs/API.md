@@ -1,6 +1,15 @@
 # Calculator API — proposed contract
 
-Status: design specification only; not implemented or tested. Expression input and parentheses are user-approved. Detailed grammar and limits below are proposed implementation rules.
+Status: the backend foundation is implemented. The expression grammar, validation, and successful calculation behavior below remain the target contract. Expression input and parentheses are user-approved; detailed grammar and limits are proposed implementation rules.
+
+## Currently available endpoints
+
+- `GET /health`: HTTP `200`, `{"status":"ok"}`; checks that the HTTP service is running.
+- `POST /api/v1/calculate`: HTTP `501`, `{"error":{"code":"NOT_IMPLEMENTED","message":"Expression calculation is not implemented yet."}}`. The placeholder does not inspect or validate the request body.
+- Other methods at these routes: HTTP `405` with `Allow: GET` or `Allow: POST`.
+- Unknown endpoint paths: HTTP `404` with the `NOT_FOUND` JSON error.
+
+These responses use `Content-Type: application/json`. The remainder of this document describes the intended calculation implementation, not the current placeholder.
 
 ## Endpoint and request
 
