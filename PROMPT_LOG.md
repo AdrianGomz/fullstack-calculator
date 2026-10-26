@@ -104,3 +104,23 @@ Outcome: implemented the Go service foundation, health endpoint, calculation pla
 ```text
 ok let's continue with the implementation of the plan for the backend application. For now let's focus on the basics to run the app and then we can go in depth with the implementation of the complex logic.
 ```
+
+## Prompt 6 — calculator logic design discussion
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: discussed the tokenizer, recursive-descent parser, expression tree, and evaluator, including the Interpreter pattern and Composite tree structure.
+
+```text
+ok now let's continue with the calculator logic. Before implementing anything i want to know what the design would be, to understand the logic and if we are going to use any design patter for this.
+```
+
+## Prompt 7 — implement calculator logic
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: implemented the calculator package and HTTP integration, added unit/fuzz tests, verified live requests, and updated documentation.
+
+```text
+ok let's continue with the implementation
+```

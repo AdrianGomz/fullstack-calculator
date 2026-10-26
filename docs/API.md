@@ -1,15 +1,15 @@
-# Calculator API — proposed contract
+# Calculator API
 
-Status: the backend foundation is implemented. The expression grammar, validation, and successful calculation behavior below remain the target contract. Expression input and parentheses are user-approved; detailed grammar and limits are proposed implementation rules.
+Status: implemented and verified with unit tests and live HTTP checks. Expression input, precedence, parentheses, request validation, and the limits below are supported.
 
 ## Currently available endpoints
 
 - `GET /health`: HTTP `200`, `{"status":"ok"}`; checks that the HTTP service is running.
-- `POST /api/v1/calculate`: HTTP `501`, `{"error":{"code":"NOT_IMPLEMENTED","message":"Expression calculation is not implemented yet."}}`. The placeholder does not inspect or validate the request body.
+- `POST /api/v1/calculate`: HTTP `200` with `{"result":...}` on success; structured JSON errors on failure.
 - Other methods at these routes: HTTP `405` with `Allow: GET` or `Allow: POST`.
 - Unknown endpoint paths: HTTP `404` with the `NOT_FOUND` JSON error.
 
-These responses use `Content-Type: application/json`. The remainder of this document describes the intended calculation implementation, not the current placeholder.
+These endpoint responses use `Content-Type: application/json`.
 
 ## Endpoint and request
 
@@ -23,7 +23,7 @@ Development backend URL: `http://localhost:8080`. No authentication or persisten
 }
 ```
 
-Require exactly one JSON object with one required, non-null string field, `expression`. Reject unknown fields and trailing JSON. This replaces the earlier operation/operands design; there is no compatibility mode because it was never implemented. One expression produces one result; this is not a batch of independent calculations.
+Require exactly one JSON object with one required, non-null string field, `expression`. Reject unknown fields, duplicate fields, case variants such as `Expression`, and trailing JSON. One expression produces one result; this is not a batch of independent calculations.
 
 ## Grammar and precedence
 
@@ -82,7 +82,7 @@ Use a stable error code and a readable message:
 {
   "error": {
     "code": "INVALID_EXPRESSION",
-    "message": "Expected a number or '(' after '+'.",
+    "message": "Expected a number or '('.",
     "position": 2
   }
 }
@@ -94,7 +94,7 @@ Include positions for syntax, numeric-literal, nesting-limit, and arithmetic err
 
 | Status | Code | Condition |
 | --- | --- | --- |
-| `400` | `INVALID_REQUEST` | Empty/malformed JSON, missing or unknown fields, null/non-string expression, non-object body, or trailing JSON. |
+| `400` | `INVALID_REQUEST` | Empty/malformed JSON, missing/unknown/duplicate fields, case variants, null/non-string expression, non-object body, or trailing JSON. |
 | `400` | `INVALID_EXPRESSION` | Empty/whitespace-only expression, unsupported tokens, or invalid syntax/parentheses. |
 | `400` | `EXPRESSION_TOO_LONG` | Expression exceeds 256 code points. |
 | `400` | `EXPRESSION_TOO_DEEP` | Parenthesis nesting exceeds 32. |
@@ -111,7 +111,7 @@ Validation order: method, content type, bounded body reading, JSON/schema checks
 
 ## Example calls
 
-These are expected behaviors after implementation, not executed service checks.
+These examples were verified against the built backend over HTTP.
 
 Mixed operations — expected `200`, `{"result":6.25}`:
 

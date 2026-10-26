@@ -1,7 +1,7 @@
 # Calculator application plan
 
 Date: 2026-10-25  
-Status: backend foundation implemented (Go module, HTTP server, health route, calculation placeholder, and foundation tests). Expression validation/evaluation and frontend remain planned; remote publication is pending.
+Status: backend expression validation, tokenizer, parser, evaluator, HTTP integration, and tests are implemented. Frontend and remote publication remain pending.
 
 ## Objective and scope
 
@@ -99,7 +99,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Foundation tests pass for port configuration, health responses, method restrictions, unknown routes, and the calculation placeholder. Build and `go vet` pass. A live smoke test verified HTTP responses, startup failures, and SIGTERM shutdown. Current coverage is 53.7% overall / 95.2% for HTTP; parser/evaluator and frontend tests remain future work.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.2%, HTTP coverage is 95.5%, and overall backend coverage is 87.9%. A five-second fuzz run passed 512,366 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend and browser integration checks remain future work.
 
 ## Optional features
 
@@ -112,14 +112,15 @@ Define semantics before implementing an optional operation and extend tests and 
 
 ## Delivery checklist
 
-- [ ] Implement expression input and backend parsing/evaluation with the required operators, precedence, and nested parentheses.
+- [x] Implement backend parsing/evaluation with the required operators, precedence, and nested parentheses.
+- [ ] Implement frontend expression input.
 - [ ] Verify responsive and accessible form behavior and both layers of validation.
 - [ ] Run tests, build/static checks, and a smoke test against the real backend.
 - [ ] Generate coverage reports and record measured results and report paths in README.
 - [ ] Update README and API documentation to match actual behavior, versions, and commands.
 - [ ] Keep `PROMPT_LOG.md` current with prompts used during implementation and any other AI tools.
-- [ ] Add `.gitignore` entries for dependencies, build outputs, generated coverage, and local configuration; do not commit secrets.
+- [x] Add `.gitignore` entries for dependencies, build outputs, generated coverage, and local configuration; do not commit secrets.
 - [ ] Commit the solution, push to the user's chosen Git host, and verify evaluator access.
 - [ ] Add the actual repository URL and share it for evaluation with the prompt log.
 
-Current milestone: a runnable backend foundation. Next implement the expression request validation and parser/evaluator, followed by the frontend and final delivery checks.
+Current milestone: backend expression calculation is implemented and verified. Next implement the frontend and complete browser integration and delivery checks.
