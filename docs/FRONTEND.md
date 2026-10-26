@@ -25,7 +25,11 @@ The full request/error contract is in [API.md](API.md).
 | File | Responsibility |
 | --- | --- |
 | [main.tsx](../frontend/src/main.tsx) | Mounts React and imports CSS. Uses React StrictMode during development. |
-| [App.tsx](../frontend/src/App.tsx) | Renders the page, owns UI state, validates basic input, handles submission, keypad editing, and focus. |
+| [App.tsx](../frontend/src/App.tsx) | Renders the header, main page layout, calculator, and footer. |
+| [Calculator.tsx](../frontend/src/components/Calculator.tsx) | Owns expression/result/error/pending state, input focus/selection, validation, submission, and keypad editing. |
+| [ExpressionInput.tsx](../frontend/src/components/ExpressionInput.tsx) | Renders the controlled expression field, label, help text, character count, and accessibility attributes. |
+| [ResultPanel.tsx](../frontend/src/components/ResultPanel.tsx) | Displays result/loading/error feedback and readable error positions. |
+| [Keypad.tsx](../frontend/src/components/Keypad.tsx) | Renders accessible keys, forwards editing actions, and submits the containing form through the equals button. |
 | [calculator.ts](../frontend/src/api/calculator.ts) | Makes HTTP requests, validates responses, translates errors, and enforces a timeout. |
 | [styles.css](../frontend/src/styles.css) | Defines colors, typography, layout, keypad appearance, focus styles, and responsive breakpoints. |
 | [vite.config.ts](../frontend/vite.config.ts) | Configures React, the development API proxy, and Vitest/coverage. |
@@ -34,7 +38,7 @@ The full request/error contract is in [API.md](API.md).
 
 ## State model
 
-All application state is local to `App`; nothing is persisted across reloads.
+All calculator state is local to `Calculator`; nothing is persisted across reloads. `App` owns only page layout. The input, result panel, and keypad receive their data and callbacks through typed props.
 
 | Value | Meaning | Initial value |
 | --- | --- | --- |
@@ -72,7 +76,7 @@ Before a request, the frontend checks only:
 
 The whitespace check uses a trimmed copy, but the submitted value is not trimmed. Go remains responsible for the complete grammar and all arithmetic/domain checks. This avoids maintaining two parsers with potentially different behavior.
 
-During a request, the input, keypad, and example button are disabled. The result area shows “Working…”. A `finally` block clears the pending state and duplicate-submission guard after success or failure.
+During a request, the input and keypad are disabled. The result area shows “Working…”. A `finally` block clears the pending state and duplicate-submission guard after success or failure.
 
 Editing the expression clears the previous result and error, so an answer never appears to belong to newly edited input.
 
@@ -84,7 +88,6 @@ The keypad is an input aid. It does not call the API except when `=` submits the
 - The visible `×`, `÷`, and `−` buttons insert the API grammar's `*`, `/`, and `-` characters.
 - Backspace removes selected text or the previous whole Unicode code point.
 - Clear empties the expression, result, and error, then focuses the input.
-- The example button fills `(2 + 3) * 4`; it does not calculate automatically. It is hidden in the compact mobile layout.
 - After keypad editing, `requestAnimationFrame` restores the cursor after React has updated the controlled input.
 
 Physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication, bracket completion, or automatic reuse of the previous answer. The submitted expression stays in the field after success.
@@ -123,11 +126,15 @@ The form has an associated input label, linked help/error text, `aria-invalid`, 
 
 ## Visual design and responsiveness
 
-The current appearance is an implementation choice: a warm neutral background, dark green result panel, and terracotta equals button. Desktop uses an introduction beside the calculator. At widths up to 760px, the layout stacks and hides the supplementary example/hint; additional sizing rules apply at 1000px and 380px.
+The current appearance is an implementation choice: a warm neutral background, dark green result panel, and terracotta equals button. The calculator is centered horizontally and vertically within the space between the header and footer, with a maximum width of 470px. The page can scroll when the content exceeds the viewport height. At widths up to 760px, page/card padding is reduced; additional page-padding rules apply at 1000px. The removed introduction and example controls have no remaining styles or tests.
+
+The header combines a boxed lowercase `c` with `alculator.` using a 2px gap. It contains no tagline. The header has an 80px minimum height on desktop and 72px on mobile. The calculator card heading contains only decorative operator symbols, followed by the labeled expression input. The footer displays “By: Isaac Gomez Ocon.” at all widths.
+
+Centering is applied to `.app-shell > main`, so it does not depend on a class on the `<main>` element. The main area has 32px vertical padding on desktop and 24px on mobile; it expands to fill available space within the full-height page shell.
 
 Styling uses plain CSS. DM Sans and Manrope load from Google Fonts with local sans-serif fallbacks. Reduced-motion preferences disable CSS transitions. Desktop and 320px layouts were checked visually, with no horizontal overflow at 320px.
 
-Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/mobile.png).
+Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/mobile.png). The latest captures show `(2+3)*4` returning `20` from the running Go API.
 
 ## Development and deployment
 
@@ -139,24 +146,38 @@ The production build outputs static assets to `frontend/dist/`. Production hosti
 
 The implementation uses a **controlled form**, **local React state**, and a separate **API client module**. It does not require a global state manager or a frontend copy of the backend Interpreter pattern.
 
-Keeping the page in one component is simple for this scope, but `App.tsx` currently combines page presentation, state, and input-editing behavior. If more features are planned, extracting `CalculatorForm`, `Keypad`, `ResultPanel`, and a `useCalculator` hook would make those responsibilities easier to navigate. Those extractions have not been made.
+The component hierarchy separates page layout, calculator coordination, and presentation:
+
+```text
+App
+└── Calculator
+    ├── ExpressionInput
+    ├── ResultPanel
+    └── Keypad
+```
+
+`Calculator` owns shared state and the input ref. `ExpressionInput` receives `inputRef`, `expression`, `pending`, `hasError`, and `onChange`. `ResultPanel` receives `result`, `pending`, an error message/optional position, and `expressionLength`; its error prop is a simple data shape rather than an API-client dependency. `Keypad` receives `pending` and `onKeyPress`. The equals key remains a native submit button, preserving the same path as pressing Enter in the input.
+
+The children do not fetch results or maintain duplicate copies of expression/result state. A custom hook or generic button component is unnecessary for the current scope; either can be introduced later if shared behavior emerges. The existing App-level interaction tests exercise the complete composition, including refs and focus behavior.
 
 ## Choices to review before further changes
 
 | Choice | Current behavior | Possible alternative |
 | --- | --- | --- |
-| Page layout | Introduction plus calculator on desktop | Calculator-only layout |
+| Page layout | Centered calculator with header/footer | Adjust card width or simplify the surrounding header/footer |
 | Input controls | Free-text expression and keypad | Keyboard-first form with fewer buttons |
 | Submission | Explicit Enter or `=` | Debounced live calculation, with cancellation/stale-response handling |
 | Pending requests | Disable editing until completion | Allow edits; cancel/ignore superseded requests |
 | Result formatting | `String(result)`, preserving normal floating-point artifacts | Rounded display with a separately accessible precise value |
 | Next calculation | Original expression remains in the field | Replace input with the answer or offer an explicit “Use result” action |
 | Error feedback | Server message, position, and selected character | Inline annotated expression or field-specific guidance |
-| Appearance | Current colors, typography, and introduction copy | Different theme, copy, or self-hosted fonts |
-| Component organization | One page component plus an API module | Smaller UI components and a state hook |
+| Appearance | Current colors, typography, and calculator copy | Different theme, copy, or self-hosted fonts |
+| Component organization | Page shell, Calculator coordinator, three presentation components, and a separate API module | Extract a state hook if the same behavior is reused elsewhere |
 
 ## Verification and limits
 
-The last implementation run passed 26 client/component tests, TypeScript checks, and the production build. Reported statement coverage was 97.89%, with 93.26% branch coverage. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
+The last implementation run passed 26 client/component tests, TypeScript checks, and the production build. Reported statement coverage was 97.95%, with 93.26% branch coverage. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
+
+The documentation refresh reran all 26 tests and the TypeScript/production build successfully. Browser checks confirmed the example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 
 Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. Optional advanced operations, persistent history, and production deployment are outside the current implementation.

@@ -32,3 +32,15 @@ Limits are 4096 body bytes, 256 expression code points, and 32 nested parenthese
 - Existing route/configuration tests continue to cover the server foundation.
 
 No general-purpose code evaluation is used. Exponentiation, functions, scientific notation, implicit multiplication, and percentages require an explicit grammar extension before they can be accepted.
+
+## Frontend
+
+See the [frontend implementation and review guide](FRONTEND.md) for the full state model, interaction flow, API behavior, and choices to review.
+
+`frontend/src/App.tsx` contains the page layout and renders `Calculator`. `frontend/src/components/Calculator.tsx` owns local expression/result/error/pending state, submission, and input editing/focus. It composes `ExpressionInput`, `ResultPanel`, and `Keypad`, passing typed props and callbacks. Only presence and the 256-code-point input limit are checked locally. The original expression is sent unchanged; Go remains responsible for grammar and arithmetic.
+
+`frontend/src/api/calculator.ts` owns fetch, JSON validation, error translation, and a ten-second abort timeout. It accepts only finite numeric successes and validates optional server positions before displaying them. React displays server text as ordinary escaped text.
+
+The UI disables edits during a request, prevents duplicate submissions, clears stale results on edits, and returns focus to the input after success/error. Keypad actions respect the cursor/selection. Server positions count code points, while native input selections use UTF-16 offsets; the UI translates between them and backspaces whole code points.
+
+Vite proxies `/api` to Go during development. `API_PROXY_TARGET` configures an alternate backend address. Production hosting must supply an equivalent same-origin route; no API credentials or direct browser cross-origin requests are needed. Styling uses plain CSS with a centered single-column calculator, reduced padding on mobile, and reduced-motion support. `App` contains the compact Calculator wordmark and the persistent author credit; calculator-specific rendering belongs to the four components.

@@ -1,17 +1,22 @@
 # Full-stack calculator
 
-A Go REST service with a planned React + TypeScript frontend.
+A React + TypeScript calculator backed by a Go REST service.
 
-**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, unary signs, decimals, and nested parentheses. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The frontend remains planned.
+**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, unary signs, decimals, and nested parentheses. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The responsive frontend supports keyboard entry, an on-screen keypad, positioned errors, loading feedback, and API failure recovery.
 
 ## Documentation
 
 - [Implementation plan](PLAN.md): scope, architecture, milestones, testing, and delivery checklist.
 - [API contract](docs/API.md): implemented endpoints, grammar, limits, and error responses.
+- [Frontend review guide](docs/FRONTEND.md): UI state, interaction flows, API handling, design choices, and alternatives to review.
 - [Calculator design](docs/ARCHITECTURE.md): tokenizer, parser, expression tree, and evaluator.
 - [Prompt log](PROMPT_LOG.md): user prompts supplied for this app.
 
-## Run the backend
+## Run locally
+
+Use two terminals: one for Go and one for Vite. Frontend prerequisites are Node.js 24.14 or newer and npm; verified with Node 24.14.1 and npm 11.11.0. Dependency versions are recorded in `frontend/package-lock.json`.
+
+### Backend
 
 Requires Go 1.25 or newer. Tested locally with Go 1.25.4 on macOS/arm64. The backend uses only the Go standard library, so no dependency installation, database, credentials, or `.env` file is needed.
 
@@ -29,6 +34,30 @@ PORT=9090 go run ./cmd/server
 ```
 
 `PORT` must be an integer from 1 through 65535. Invalid configuration or an occupied port causes a startup error and a nonzero exit. Stop the server with Ctrl+C; it allows up to five seconds for active requests to finish. The service uses standard HTTP read/write/idle timeouts and logs startup, shutdown, and failures.
+
+### Frontend
+
+In another terminal, from the repository root:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open [the calculator](http://127.0.0.1:5173). Vite proxies `/api` to `http://127.0.0.1:8080`, so browser requests use the same origin. If you changed the backend port, set its target when launching Vite:
+
+```bash
+API_PROXY_TARGET=http://127.0.0.1:9090 npm run dev
+```
+
+Enter an expression and press Enter or `=`. The keypad inserts at the cursor and replaces selected text; Clear resets the input, result, and errors. Inputs are disabled while waiting, and requests time out after ten seconds. Editing clears stale output. Syntax errors focus the corresponding character, including an end-of-expression position when a token is missing.
+
+The page contains a compact “Calculator” wordmark, a centered calculator card, and the footer credit “By: Isaac Gomez Ocon.” on both desktop and mobile. `App` renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
+
+Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
+
+![Calculator desktop preview](docs/screenshots/desktop.png)
 
 ## Try the current endpoints
 
@@ -84,7 +113,7 @@ Tests cover tokenization, tree structure, precedence, associativity, nested pare
 
 Verified on Go 1.25.4: `go test -race ./... -coverprofile=coverage.out`, `go vet ./...`, and the standalone build pass. Statement coverage is **87.9% overall**, **99.2% for the calculator package**, and **95.5% for HTTP**. The server entry point/lifecycle is checked separately over HTTP rather than included in unit-test coverage.
 
-A five-second fuzz run completed **512,366 executions** without failures. A live test against the built server verified health, six calculations, five positioned expression errors, three request errors, and clean SIGTERM shutdown. This validates the backend; browser integration remains pending.
+A five-second fuzz run completed **512,366 executions** without failures. A live test against the built server verified health, six calculations, five positioned expression errors, three request errors, and clean SIGTERM shutdown. The frontend was subsequently checked against the real backend in a browser; see frontend verification below.
 
 To repeat the short fuzz check from `backend/`:
 
@@ -99,26 +128,41 @@ go build -o bin/calculator ./cmd/server
 ./bin/calculator
 ```
 
-## Next implementation steps
+## Frontend checks and build
 
-1. Add the React/TypeScript frontend and connect it through a Vite `/api` proxy to port 8080.
-2. Verify the full browser workflow and frontend coverage.
-3. Publish the repository and coverage artifacts for evaluation.
+From the repository root:
 
-Frontend setup commands will be added when its manifests and scripts exist. Exponentiation, square root, and percentage remain optional future work.
+```bash
+cd frontend
+npm run test:coverage
+npm run typecheck
+npm run build
+```
+
+All **26 tests pass**, with **97.95% statement coverage**, **93.26% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
+
+Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input, pending state, Clear, keypad editing, error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
+
+Browser verification used Vite with the real Go backend: precedence, parentheses, division-by-zero feedback, Clear, and recovery after deliberately stopping/restarting the backend. Desktop and 320px mobile layouts were visually checked; the mobile page has no horizontal overflow. Screenshots are linked above. Loading and timeout behavior also have automated coverage.
+
+`npm run build` checks TypeScript and writes the production frontend to `frontend/dist/`. Production hosting must serve those static files and route `/api` to Go on the same origin; the Vite development server is not a production deployment. Typography loads from Google Fonts with local sans-serif fallbacks.
+
+## Remaining delivery work
+
+Publish the repository and coverage artifacts for evaluation. Exponentiation, square root, percentage, and Docker remain optional future work.
 
 ## Design decisions and assumptions
 
 - The server entry point owns configuration, HTTP timeouts, signals, and shutdown; `internal/httpapi` constructs routes independently of a listener for testing.
 - Go owns arithmetic. A separate tokenizer/parser/evaluator accepts only the documented arithmetic grammar. The parser builds a tree before arithmetic begins, so syntax errors take priority over division errors.
-- One expression field supports multiple operators and parentheses. Go enforces full validation; React will check presence/length and show server errors with positions.
+- One expression field supports multiple operators and parentheses. Go enforces full validation; React checks presence/length and shows server errors with positions; it never evaluates arithmetic locally.
 - Binary floating-point can produce decimal rounding artifacts; the application is not intended for exact financial arithmetic.
 - Calculations are stateless; no accounts or database are required.
 - Advanced operations and Docker follow completion of the required functionality.
 
 ## Submission status
 
-- Backend expression calculation and tests: implemented; frontend: pending.
+- Backend and frontend implementation, tests, build, and local browser integration: complete.
 - Git repository: initialized locally; publication and evaluator access: pending.
 - Repository URL: pending.
 - Prompt record: [PROMPT_LOG.md](PROMPT_LOG.md); append prompts used in subsequent work and other AI tools.

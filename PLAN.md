@@ -1,7 +1,7 @@
 # Calculator application plan
 
 Date: 2026-10-25  
-Status: backend expression validation, tokenizer, parser, evaluator, HTTP integration, and tests are implemented. Frontend and remote publication remain pending.
+Status: backend and React/TypeScript frontend are implemented, tested, and verified together locally. Remote publication remains pending.
 
 ## Objective and scope
 
@@ -33,16 +33,16 @@ Accept only the arithmetic grammar in [the API contract](docs/API.md). Parse the
 
 ## User experience
 
-Use a labeled expression field, a Calculate button, a Clear button, and a visible result/error area. Show an example with parentheses; a custom keypad is not required.
+Use a labeled expression field, an equals button for calculation, a Clear button, and a visible result/error area. The implemented keypad supports numbers, operators, parentheses, decimal points, and Backspace. The input placeholder shows a parenthesized example.
 
 - Support multiple operators, nested parentheses, unary signs, decimals, zero, and whitespace. Require complete expression parsing; never accept only the valid prefix of `12abc`.
 - Validate nonempty input and a 256-character limit locally. Go owns full syntax and arithmetic validation; display server errors with positions without duplicating the parser in React.
 - Show a loading state and disable inputs and Calculate while a request is pending to prevent duplicate submissions and mismatched results.
 - Clear old output when the expression changes. Clear resets fields, result, and errors when no request is pending.
 - Support Enter to submit, keyboard navigation, visible focus, associated labels, and an announced result/error region.
-- Use a compact desktop layout that stacks on narrow mobile screens, with no horizontal scrolling at a 320px viewport.
+- Center one calculator card between the compact wordmark header and author-credit footer. Reduce padding on narrow screens and preserve the credit, with no horizontal scrolling at a 320px viewport.
 
-## Planned repository layout
+## Current repository layout
 
 ```text
 calculator/
@@ -52,14 +52,23 @@ calculator/
   .gitignore
   docs/
     API.md
+    ARCHITECTURE.md
+    FRONTEND.md
+    screenshots/
   frontend/
     package.json
     package-lock.json
     src/
       App.tsx
       App.test.tsx
+      main.tsx
+      components/Calculator.tsx
+      components/ExpressionInput.tsx
+      components/ResultPanel.tsx
+      components/Keypad.tsx
       api/calculator.ts
       api/calculator.test.ts
+      test/setup.ts
       styles.css
   backend/
     go.mod
@@ -73,7 +82,7 @@ calculator/
     internal/httpapi/handler_test.go
 ```
 
-The layout is illustrative. Keep small UI components together until separating them improves readability. Record actual Node/npm and Go versions after selecting and testing the toolchain; commit lockfiles and the Go module version.
+This overview lists the main sources and documentation. App owns page layout; Calculator owns shared UI state and composes three presentation components. Tested Node/npm and Go versions are recorded in README, with dependencies captured in the frontend lockfile and Go module configuration.
 
 ## Implementation sequence and time budget
 
@@ -99,7 +108,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.2%, HTTP coverage is 95.5%, and overall backend coverage is 87.9%. A five-second fuzz run passed 512,366 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend and browser integration checks remain future work.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.2%, HTTP coverage is 95.5%, and overall backend coverage is 87.9%. A five-second fuzz run passed 512,366 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 26 tests pass, with 97.95% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
@@ -113,14 +122,14 @@ Define semantics before implementing an optional operation and extend tests and 
 ## Delivery checklist
 
 - [x] Implement backend parsing/evaluation with the required operators, precedence, and nested parentheses.
-- [ ] Implement frontend expression input.
-- [ ] Verify responsive and accessible form behavior and both layers of validation.
-- [ ] Run tests, build/static checks, and a smoke test against the real backend.
-- [ ] Generate coverage reports and record measured results and report paths in README.
-- [ ] Update README and API documentation to match actual behavior, versions, and commands.
-- [ ] Keep `PROMPT_LOG.md` current with prompts used during implementation and any other AI tools.
+- [x] Implement frontend expression input.
+- [x] Verify responsive and accessible form behavior and both layers of validation.
+- [x] Run tests, build/static checks, and a smoke test against the real backend.
+- [x] Generate coverage reports and record measured results and report paths in README.
+- [x] Update README and API documentation to match actual behavior, versions, and commands.
+- [x] Keep `PROMPT_LOG.md` current with prompts used during implementation and any other AI tools.
 - [x] Add `.gitignore` entries for dependencies, build outputs, generated coverage, and local configuration; do not commit secrets.
 - [ ] Commit the solution, push to the user's chosen Git host, and verify evaluator access.
 - [ ] Add the actual repository URL and share it for evaluation with the prompt log.
 
-Current milestone: backend expression calculation is implemented and verified. Next implement the frontend and complete browser integration and delivery checks.
+Current milestone: the full-stack calculator is implemented and verified locally. Publication and sharing the repository link remain delivery steps.

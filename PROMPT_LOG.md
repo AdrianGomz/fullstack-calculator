@@ -124,3 +124,65 @@ Outcome: implemented the calculator package and HTTP integration, added unit/fuz
 ```text
 ok let's continue with the implementation
 ```
+
+## Prompt 8 — implement the frontend
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: implemented the React/TypeScript frontend, Vite API proxy, keypad and form interactions, client/component tests, and verified desktop/mobile behavior against the real Go backend.
+
+```text
+ok let's proceed with the front end app
+```
+
+## Prompt 9 — continue frontend work
+
+Date: 2026-10-25
+Tool: Codex desktop
+Context: sent while frontend work was still active.
+Outcome: completed the frontend checks, documentation, and temporary-server cleanup.
+
+```text
+continue
+```
+
+## Prompt 10 — request frontend implementation explanation
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: added a frontend review guide describing the existing implementation and alternatives for discussion.
+
+```text
+I see that the code was already implemented but i wanted an explanation of the implementation like the api document so i can review it and make some changes if necessary
+```
+
+## Prompt 11 — review component boundaries before refactoring
+
+Date: 2026-10-25
+Tool: Codex desktop
+Context: prompt logging resumed before this entry; messages from the paused period and the pause/resume instructions are excluded.
+Outcome: reviewed Calculator, Input, ResultPanel, and Keypad responsibilities and recommended keeping shared state in Calculator. No application code changed.
+
+```text
+I see that we are constructing the entire app in the App component could you help me separate it in more components to make it more readable. I was tinking of this components Calculator, Input, ResultPanel, Keypad. Before implementing any change tell me if this components are enough or if we should implement something else.
+```
+
+## Prompt 12 — extract calculator components
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: extracted Calculator, ExpressionInput, ResultPanel, and Keypad; retained shared state in Calculator and layout in App. All 26 existing tests and the TypeScript/production build pass.
+
+```text
+ok implement the components
+```
+
+## Prompt 13 — refresh documentation and screenshots
+
+Date: 2026-10-25
+Tool: Codex desktop
+Outcome: reviewed the current components, styling, header/footer copy, and layout; updated documentation and refreshed desktop, mobile, and header screenshots. All 26 frontend tests and the TypeScript/production build pass.
+
+```text
+I made some changes in the app manually update the documentation and the screenshots
+```
