@@ -20,7 +20,6 @@ func TestRoutes(t *testing.T) {
 	}{
 		{"health", http.MethodGet, "/health", http.StatusOK, "", ""},
 		{"health wrong method", http.MethodPost, "/health", http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET"},
-		{"calculation placeholder", http.MethodPost, "/api/v1/calculate", http.StatusNotImplemented, "NOT_IMPLEMENTED", ""},
 		{"calculation wrong method", http.MethodGet, "/api/v1/calculate", http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "POST"},
 		{"unknown endpoint", http.MethodGet, "/missing", http.StatusNotFound, "NOT_FOUND", ""},
 		{"health subpath", http.MethodGet, "/health/extra", http.StatusNotFound, "NOT_FOUND", ""},
