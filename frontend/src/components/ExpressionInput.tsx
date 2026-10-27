@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import styles from './ExpressionInput.module.css'
 
 interface ExpressionInputProps {
   inputRef: Ref<HTMLInputElement>
@@ -12,9 +13,10 @@ export default function ExpressionInput({ inputRef, expression, pending, hasErro
   const length = [...expression].length
 
   return (
-    <div className="expression-wrap">
+    <div className={styles.wrapper}>
       <label htmlFor="expression">Your expression</label>
       <input
+        className={styles.input}
         ref={inputRef}
         id="expression"
         type="text"
@@ -28,11 +30,11 @@ export default function ExpressionInput({ inputRef, expression, pending, hasErro
         aria-invalid={hasError}
         aria-describedby={hasError ? 'expression-help percentage-help calculation-error' : 'expression-help percentage-help'}
       />
-      <div className="input-meta">
+      <div className={styles.meta}>
         <span id="expression-help">Use + − * / ^, sqrt(...), % and parentheses</span>
-        <span className={`character-count${length > 256 ? ' over-limit' : ''}`}>{length} / 256</span>
+        <span className={`${styles.characterCount}${length > 256 ? ` ${styles.overLimit}` : ''}`}>{length} / 256</span>
       </div>
-      <p id="percentage-help" className="input-hint">
+      <p id="percentage-help" className={styles.hint}>
         10% = 0.1 · 200 × 10% = 20 · 200 + 10% = 200.1
       </p>
     </div>

@@ -1,0 +1,33 @@
+.wrapper label { font-size: 11px; color: var(--color-muted); display: block; margin-bottom: 9px; }
+
+.input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dce0d1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  color: #344330;
+  font-size: 21px;
+  letter-spacing: -.5px;
+  transition: box-shadow .15s;
+}
+
+.input::placeholder { color: #a3aa9a; }
+.input:focus { outline: none; border-color: #7b9173; box-shadow: 0 0 0 3px #81947720; }
+.input[aria-invalid=true] { border-color: #b95c3f; }
+
+.meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 6px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+
+.characterCount { flex-shrink: 0; white-space: nowrap; }
+.hint { margin: 0 0 18px; font-size: 10px; line-height: 1.6; color: var(--color-muted); }
+.overLimit { color: #a9432c; }

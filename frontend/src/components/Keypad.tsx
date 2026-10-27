@@ -1,3 +1,5 @@
+import styles from './Keypad.module.css'
+
 const keys = [
   '^', 'sqrt', 'Clear', 'Backspace',
   '(', ')', '%', '/',
@@ -20,14 +22,14 @@ interface KeypadProps {
 
 export default function Keypad({ pending, onKeyPress }: KeypadProps) {
   return (
-    <fieldset className="keypad" disabled={pending}>
+    <fieldset className={styles.keypad} disabled={pending}>
       <legend className="sr-only">Calculator keypad</legend>
       {keys.map(key => (
         <button
           key={key}
           type={key === '=' ? 'submit' : 'button'}
           aria-label={labels[key] ?? key}
-          className={`key ${key === '=' ? 'equals' : ['/', '*', '-', '+', '^', 'sqrt', '%'].includes(key) ? 'operator' : ['(', ')', 'Clear', 'Backspace'].includes(key) ? 'utility' : ''}`}
+          className={`${styles.key} ${key === '=' ? styles.equals : ['/', '*', '-', '+', '^', 'sqrt', '%'].includes(key) ? styles.operator : ['(', ')', 'Clear', 'Backspace'].includes(key) ? styles.utility : ''}`}
           onClick={key === '=' ? undefined : () => onKeyPress(key)}
         >
           {symbols[key] ?? key}

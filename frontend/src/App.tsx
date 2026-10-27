@@ -1,15 +1,16 @@
 import Calculator from './components/Calculator'
+import styles from './App.module.css'
 
 export default function App() {
   return (
-    <div className="app-shell">
-      <header className="site-header">
-        <a className="wordmark" href="./" aria-label="Calculator home"><span className="brand-icon" aria-hidden="true">c</span>alculator<span className="wordmark-dot">.</span></a>
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <a className={styles.wordmark} href="./" aria-label="Calculator home"><span className={styles.brandIcon} aria-hidden="true">c</span>alculator<span className={styles.dot}>.</span></a>
       </header>
       <main>
         <Calculator />
       </main>
-      <footer className="site-footer"><span>By: Isaac Gomez Ocon.</span></footer>
+      <footer className={styles.footer}><span>By: Isaac Gomez Ocon.</span></footer>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { calculate, CalculationError } from '../api/calculator'
 import ExpressionInput from './ExpressionInput'
 import ResultPanel from './ResultPanel'
 import Keypad from './Keypad'
+import styles from './Calculator.module.css'
 
 export default function Calculator() {
   const [expression, setExpression] = useState('')
@@ -94,9 +95,9 @@ export default function Calculator() {
   }
 
   return (
-    <section className="calculator" aria-label="Calculator">
-      <div className="calculator-heading">
-        <span className="calculator-mark" aria-hidden="true">＋ − × ÷</span>
+    <section className={styles.calculator} aria-label="Calculator">
+      <div className={styles.heading}>
+        <span className={styles.mark} aria-hidden="true">＋ − × ÷</span>
       </div>
       <form onSubmit={submit} aria-busy={pending}>
         <ExpressionInput
@@ -114,7 +115,7 @@ export default function Calculator() {
         />
         <Keypad pending={pending} onKeyPress={insert} />
       </form>
-      <div className="calculator-footer">
+      <div className={styles.footer}>
         <span aria-hidden="true">⌘</span> Your keyboard works here, too.
       </div>
     </section>
