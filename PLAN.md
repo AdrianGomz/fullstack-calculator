@@ -19,7 +19,7 @@ Expression input, standard precedence, and nested parentheses are user-approved 
 
 | Area | Choice | Reason |
 | --- | --- | --- |
-| Frontend | React, TypeScript, Vite, plain CSS | Small setup, explicit types, minimal styling dependencies. |
+| Frontend | React, TypeScript, Vite, CSS Modules | Small setup, explicit types, minimal styling dependencies. |
 | Backend | Go standard library `net/http` and `encoding/json` | Enough for a small REST service without a framework. |
 | API | `POST /api/v1/calculate` with an `expression` string | Multiple operations and parentheses in one calculation. |
 | Calculation | Pure Go tokenizer, recursive-descent parser, and evaluator separated from HTTP handlers | Arithmetic and transport behavior can be tested independently. |
@@ -60,12 +60,17 @@ calculator/
     package-lock.json
     src/
       App.tsx
+      App.module.css
       App.test.tsx
       main.tsx
       components/Calculator.tsx
+      components/Calculator.module.css
       components/ExpressionInput.tsx
+      components/ExpressionInput.module.css
       components/ResultPanel.tsx
+      components/ResultPanel.module.css
       components/Keypad.tsx
+      components/Keypad.module.css
       api/calculator.ts
       api/calculator.test.ts
       test/setup.ts
@@ -205,14 +210,14 @@ The backend already accepts the new syntax through the existing expression reque
 | Square root | `√`, accessible name “Square root” | With no selection, insert `sqrt()` and place the cursor inside. With selected text, wrap it in `sqrt(...)` and place the cursor after the closing parenthesis. |
 | Percentage | `%`, accessible name “Percentage” | Insert `%` using the existing cursor/selection replacement behavior. |
 
-Use a single four-column keypad with six rows: power/root/Clear/Backspace; parentheses/percentage/division; 7/8/9/multiplication; 4/5/6/addition; 1/2/3/subtraction; and 0/decimal/equals. Equals spans the final two columns. Controls remain disabled during pending requests, and the card stays centered with mobile touch-target sizes preserved.
+Use a single four-column keypad with six rows: parentheses/Clear/Backspace; power/root/percentage/division; 7/8/9/multiplication; 4/5/6/addition; 1/2/3/subtraction; and 0/decimal/equals. Equals spans the final two columns. Controls remain disabled during pending requests, and the card stays centered with mobile touch-target sizes preserved.
 
 Implemented source changes:
 
 - `Keypad.tsx`: render the six-row keypad with explicit accessible names and the appropriate editing actions; keep all arithmetic on the backend.
 - `Calculator.tsx`: extend insertion for a balanced square-root template and selection wrapping, restoring focus/cursor after React updates. Keep insertion literal: no automatic multiplication, calculation, or rewriting of the remaining expression.
 - `ExpressionInput.tsx`: update help to list `^`, `sqrt(...)`, and `%`. Add concise percentage guidance: `10% = 0.1`; `200*10% = 20`, while `200+10% = 200.1`. Keep the existing character-count limit and accessible help relationships.
-- `styles.css`: style the four-column keypad and double-column equals key and allow help text to wrap at narrow widths.
+- CSS Modules: `Keypad.module.css` owns the four-column grid and two-column equals key; `ExpressionInput.module.css` owns wrapping help text. Other components have matching modules, while `styles.css` retains only shared base styles and theme variables.
 - Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component or custom hook is required.
 
 Acceptance checks before completion:

@@ -256,3 +256,17 @@ ok i want to reorder the buttons on the calculator
 
 and lets make the equal twice the with of a normal button.
 ```
+
+## Prompt 20 — reorder the first two keypad rows
+
+Date: 2026-10-26
+Tool: Codex desktop
+Context: prompt logging resumed before this entry; the resume instruction is excluded.
+Outcome: moved parentheses to the first row alongside Clear and Backspace, and placed power/root/percentage/division in the second row; updated layout documentation and screenshots.
+
+```text
+change the order of the first two rows to this
+
+1. (, ), clear, deletion
+2. exponentiation, square root, percentage, division
+```

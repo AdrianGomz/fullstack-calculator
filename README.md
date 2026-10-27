@@ -155,6 +155,8 @@ Publish the repository and coverage artifacts for evaluation. The optional arith
 
 ## Design decisions and assumptions
 
+- Each frontend component imports its own CSS Module. Shared fonts, theme variables, resets, and accessibility utilities remain in `frontend/src/styles.css`; responsive rules live with the component they affect.
+
 - The server entry point owns configuration, HTTP timeouts, signals, and shutdown; `internal/httpapi` constructs routes independently of a listener for testing.
 - Go owns arithmetic. A separate tokenizer/parser/evaluator accepts only the documented arithmetic grammar. The parser builds a tree before arithmetic begins, so syntax errors take priority over division errors.
 - One expression field supports multiple operators and parentheses. Go enforces full validation; React checks presence/length and shows server errors with positions; it never evaluates arithmetic locally.

@@ -31,7 +31,12 @@ The full request/error contract is in [API.md](API.md).
 | [ResultPanel.tsx](../frontend/src/components/ResultPanel.tsx) | Displays result/loading/error feedback and readable error positions. |
 | [Keypad.tsx](../frontend/src/components/Keypad.tsx) | Renders accessible keys, forwards editing actions, and submits the containing form through the equals button. |
 | [calculator.ts](../frontend/src/api/calculator.ts) | Makes HTTP requests, validates responses, translates errors, and enforces a timeout. |
-| [styles.css](../frontend/src/styles.css) | Defines colors, typography, layout, keypad appearance, focus styles, and responsive breakpoints. |
+| [styles.css](../frontend/src/styles.css) | Shared font imports, CSS variables, resets, focus/disabled behavior, reduced-motion support, and `sr-only`. |
+| [App.module.css](../frontend/src/App.module.css) | Page shell, centering, header/wordmark/footer, and their responsive rules. |
+| [Calculator.module.css](../frontend/src/components/Calculator.module.css) | Calculator card, heading, keyboard hint, and mobile card padding. |
+| [ExpressionInput.module.css](../frontend/src/components/ExpressionInput.module.css) | Scoped input/focus/error appearance, label, count, and help text. |
+| [ResultPanel.module.css](../frontend/src/components/ResultPanel.module.css) | Result/loading/error presentation and error-state variants. |
+| [Keypad.module.css](../frontend/src/components/Keypad.module.css) | Grid, key variants, interaction styles, and the two-column equals key. |
 | [vite.config.ts](../frontend/vite.config.ts) | Configures React, the development API proxy, and Vitest/coverage. |
 | [App.test.tsx](../frontend/src/App.test.tsx) | Tests form behavior and interactions. |
 | [calculator.test.ts](../frontend/src/api/calculator.test.ts) | Tests API request/response handling and failures. |
@@ -132,12 +137,12 @@ The current appearance is an implementation choice: a warm neutral background, d
 
 The header combines a boxed lowercase `c` with `alculator.` using a 2px gap. It contains no tagline. The header has an 80px minimum height on desktop and 72px on mobile. The calculator card heading contains only decorative operator symbols, followed by the labeled expression input. The footer displays “By: Isaac Gomez Ocon.” at all widths.
 
-Centering is applied to `.app-shell > main`, so it does not depend on a class on the `<main>` element. The main area has 32px vertical padding on desktop and 24px on mobile; it expands to fill available space within the full-height page shell.
+Centering is applied to `.shell > main` in `App.module.css`, so it does not depend on a class on the `<main>` element. Vite scopes the shell class automatically. The main area has 32px vertical padding on desktop and 24px on mobile; it expands to fill available space within the full-height page shell.
 
 The keypad uses one four-column grid inside its disabled-capable fieldset. Its rows are:
 
-1. `xʸ`, `√`, `Clear`, `⌫`
-2. `(`, `)`, `%`, `÷`
+1. `(`, `)`, `Clear`, `⌫`
+2. `xʸ`, `√`, `%`, `÷`
 3. `7`, `8`, `9`, `×`
 4. `4`, `5`, `6`, `+`
 5. `1`, `2`, `3`, `−`
@@ -145,7 +150,9 @@ The keypad uses one four-column grid inside its disabled-capable fieldset. Its r
 
 The equals key fills two column tracks plus the gap between them. Input help can wrap while the character counter stays on one line. Percentage guidance explains `10% = 0.1`, `200 × 10% = 20`, and `200 + 10% = 200.1`.
 
-Styling uses plain CSS. DM Sans and Manrope load from Google Fonts with local sans-serif fallbacks. Reduced-motion preferences disable CSS transitions. Desktop and 320px layouts were checked visually, with no horizontal overflow at 320px.
+Styling uses CSS Modules, imported by each matching TSX component as `styles`. Vite generates scoped class names, so similarly named classes such as `footer` do not collide across components. Element selectors that affect appearance are scoped beneath local classes; for example, input styles belong to ExpressionInput rather than a global `input` selector. Responsive rules live in the module that owns the affected element.
+
+`styles.css` stays global for font imports, shared font/color variables, box sizing, base body/control behavior, focus/disabled styling, the `sr-only` utility, and reduced-motion preferences. Common theme values use CSS variables such as `--font-display`, `--color-muted`, and `--color-accent`. DM Sans and Manrope load from Google Fonts with local sans-serif fallbacks. Reduced-motion preferences disable CSS transitions. Desktop and 320px layouts were checked visually, with no horizontal overflow at 320px.
 
 Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/mobile.png). The latest captures (2026-10-26) show `sqrt(16)+2^3+50%` returning `12.5` from the running Go API, with the six-row keypad, wide equals button, and percentage guidance visible. Desktop was captured at 1280 × 1100 and mobile at a width of 320px; shorter viewports can scroll vertically.
 
@@ -194,3 +201,6 @@ The last implementation run passed 37 client/component tests, TypeScript checks,
 The advanced-operation milestone passed all 37 tests and the TypeScript/production build. Browser checks confirmed power and percentage button submission, square-root template insertion and selection wrapping, domain-error feedback, the combined example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 
 Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. The backend supports `^`, `sqrt(...)`, and postfix `%` through the same expression request, and the frontend now offers both typed entry and dedicated controls/help. Persistent history and production deployment remain outside the current implementation.
+
+
+The CSS Modules refactor preserved the existing component tests: all 37 tests and the TypeScript/production build pass. Browser checks confirmed desktop centering, the two-column equals key, scoped input/error states, and the 320px layout with mobile padding and visible attribution. The app still submits the same expressions and receives the same backend results.
