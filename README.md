@@ -51,11 +51,11 @@ Open [the calculator](http://127.0.0.1:5173). Vite proxies `/api` to `http://127
 API_PROXY_TARGET=http://127.0.0.1:9090 npm run dev
 ```
 
-Enter an expression and press Enter or `=`. The keypad inserts at the cursor and replaces selected text; Clear resets the input, result, and errors. Inputs are disabled while waiting, and requests time out after ten seconds. Editing clears stale output. Syntax errors focus the corresponding character, including an end-of-expression position when a token is missing.
+Enter an expression and press Enter or `=`. The keypad inserts at the cursor and replaces selected text. The expression starts at `0`; Clear restores `0` and removes the result/errors. Numbers and parentheses replace this lone zero; operators retain it, and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Inputs are disabled while waiting, and requests time out after ten seconds. Editing clears stale output. Syntax errors focus the corresponding character, including an end-of-expression position when a token is missing.
 
 The page contains a compact “Calculator” wordmark, a centered calculator card, and the footer credit “By: Isaac Gomez Ocon.” on both desktop and mobile. `App` renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
 
-The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists the syntax and explains that `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
+The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^()` with the cursor inside (for example, `2^()`), or wraps selected text in `^(...)`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists the syntax and explains that `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
 
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 

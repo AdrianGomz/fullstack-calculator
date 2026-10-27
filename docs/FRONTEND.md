@@ -47,7 +47,7 @@ All calculator state is local to `Calculator`; nothing is persisted across reloa
 
 | Value | Meaning | Initial value |
 | --- | --- | --- |
-| `expression` | The exact text in the input, including spaces. | Empty string |
+| `expression` | The exact text in the input, including spaces. | `"0"` |
 | `result` | Last successful numeric result; `null` means no result. | `null` |
 | `error` | A `CalculationError` containing a message and optional position. | `null` |
 | `pending` | Whether a request is in progress; drives disabled/loading UI. | `false` |
@@ -89,15 +89,16 @@ Editing the expression clears the previous result and error, so an answer never 
 
 The keypad is an input aid. It does not call the API except when `=` submits the form.
 
-- Numbers, operators (including `^` and `%`), decimal points, and parentheses insert at the input cursor or replace selected text.
+- The expression starts at `0`; Clear restores `0` and removes the result/error. On this lone zero, number and parenthesis keys replace it, operators retain it (for example, `0+`), and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Keyboard entry follows the same starting-zero rule, including typed `sqrt(...)`; paste and other text edits retain normal browser behavior. Zeros within longer expressions are preserved.
+- Otherwise, numbers, operators, decimal points, and parentheses insert at the input cursor or replace selected text.
 - The visible `×`, `÷`, and `−` buttons insert the API grammar's `*`, `/`, and `-` characters.
-- The keypad includes three advanced controls: Power (`xʸ`) inserts `^`, Square root (`√`) inserts a balanced `sqrt()` template, and Percentage inserts `%`. Accessible names are “Power”, “Square root”, and “Percentage”.
-- With no selection, Square root places the cursor inside the new parentheses. With a selection, it wraps the selected text in `sqrt(...)` and places the cursor after the closing parenthesis. Surrounding text is preserved; no multiplication is inferred.
+- The keypad includes three advanced controls: Power (`xʸ`) inserts a balanced `^()` template, Square root (`√`) inserts a balanced `sqrt()` template, and Percentage inserts `%`. Accessible names are “Power”, “Square root”, and “Percentage”.
+- With no selection, Power and Square root place the cursor inside the new parentheses. With a selection, they wrap the selected text in `^(...)` or `sqrt(...)` and place the cursor after the closing parenthesis. For example, Power after `2` produces `2^()`, ready to enter the exponent. Surrounding text is preserved; no multiplication is inferred.
 - Backspace removes selected text or the previous whole Unicode code point.
-- Clear empties the expression, result, and error, then focuses the input.
+- Clear resets the expression to `0`, clears the result and error, and focuses the input with the cursor after zero. Backspace and manual deletion can still leave an empty field, which is validated on submission.
 - After keypad editing, `requestAnimationFrame` restores the cursor after React has updated the controlled input.
 
-Physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication, automatic bracket completion during typing, or automatic reuse of the previous answer. The balanced square-root template is an explicit keypad action. The submitted expression stays in the field after success.
+Apart from replacing or retaining the lone zero as described above, physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication, automatic bracket completion during typing, or automatic reuse of the previous answer. Balanced power and square-root templates are explicit keypad actions; typing `^` does not automatically add parentheses. The submitted expression stays in the field after success.
 
 ## API client behavior
 
@@ -196,7 +197,7 @@ The children do not fetch results or maintain duplicate copies of expression/res
 
 ## Verification and limits
 
-The last implementation run passed 37 client/component tests, TypeScript checks, and the production build. Reported statement coverage was 98.05%, with 93.51% branch coverage. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
+The current implementation passes 64 client/component tests, TypeScript checks, and the production build. The initial-zero and power-template changes add coverage for keyboard/keypad replacement, retained zero operands, reset behavior, exponent wrapping, and caret placement. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
 
 The advanced-operation milestone passed all 37 tests and the TypeScript/production build. Browser checks confirmed power and percentage button submission, square-root template insertion and selection wrapping, domain-error feedback, the combined example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 

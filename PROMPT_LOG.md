@@ -270,3 +270,16 @@ change the order of the first two rows to this
 1. (, ), clear, deletion
 2. exponentiation, square root, percentage, division
 ```
+
+## Prompt 21 — start at zero and insert a balanced exponent
+
+Date: 2026-10-26
+Tool: Codex desktop
+Context: prompt logging resumed before this entry; the resume instruction is excluded.
+Outcome: initialized and reset the expression to `0`, made number/parenthesis entry replace the lone zero while retaining it before operators, and added balanced power insertion/selection wrapping with caret placement. Updated documentation; all 64 frontend tests and the TypeScript/production build pass.
+
+```text
+ok i've noticed some errors and some behavior i want to change:
+1. first let's always start with a 0 in the calculator from the start or if we clear the result. if we clic any number or parenthesis we will replace this 0. if it's an operand we will keep the 0.
+2. when we click the exponentiation let's immediately add two parenthesis as we do when we use square root.
+```

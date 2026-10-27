@@ -38,7 +38,7 @@ Use a labeled expression field, an equals button for calculation, a Clear button
 - Support multiple operators, nested parentheses, unary signs, decimals, zero, and whitespace. Require complete expression parsing; never accept only the valid prefix of `12abc`.
 - Validate nonempty input and a 256-character limit locally. Go owns full syntax and arithmetic validation; display server errors with positions without duplicating the parser in React.
 - Show a loading state and disable inputs and Calculate while a request is pending to prevent duplicate submissions and mismatched results.
-- Clear old output when the expression changes. Clear resets fields, result, and errors when no request is pending.
+- Clear old output when the expression changes. The expression starts at `0`; Clear restores `0` and removes the result/errors when no request is pending. Number/parenthesis entry replaces the lone zero, operators retain it, decimal entry produces `0.`, and Square root replaces it with `sqrt()`.
 - Support Enter to submit, keyboard navigation, visible focus, associated labels, and an announced result/error region.
 - Center one calculator card between the compact wordmark header and author-credit footer. Reduce padding on narrow screens and preserve the credit, with no horizontal scrolling at a 320px viewport.
 
@@ -206,7 +206,7 @@ The backend already accepts the new syntax through the existing expression reque
 
 | Control | Display/accessibility | Implemented editing behavior |
 | --- | --- | --- |
-| Exponentiation | `xʸ`, accessible name “Power” | Insert `^` using the existing cursor/selection replacement behavior. |
+| Exponentiation | `xʸ`, accessible name “Power” | Insert `^()` and place the cursor inside; with a selection, wrap it in `^(...)` and place the cursor after the closing parenthesis. |
 | Square root | `√`, accessible name “Square root” | With no selection, insert `sqrt()` and place the cursor inside. With selected text, wrap it in `sqrt(...)` and place the cursor after the closing parenthesis. |
 | Percentage | `%`, accessible name “Percentage” | Insert `%` using the existing cursor/selection replacement behavior. |
 
@@ -215,7 +215,7 @@ Use a single four-column keypad with six rows: parentheses/Clear/Backspace; powe
 Implemented source changes:
 
 - `Keypad.tsx`: render the six-row keypad with explicit accessible names and the appropriate editing actions; keep all arithmetic on the backend.
-- `Calculator.tsx`: extend insertion for a balanced square-root template and selection wrapping, restoring focus/cursor after React updates. Keep insertion literal: no automatic multiplication, calculation, or rewriting of the remaining expression.
+- `Calculator.tsx`: extend insertion for balanced power/square-root templates, selection wrapping, and initial/cleared-zero behavior, restoring focus/cursor after React updates. Keep insertion literal: no automatic multiplication, calculation, or rewriting of the remaining expression.
 - `ExpressionInput.tsx`: update help to list `^`, `sqrt(...)`, and `%`. Add concise percentage guidance: `10% = 0.1`; `200*10% = 20`, while `200+10% = 200.1`. Keep the existing character-count limit and accessible help relationships.
 - CSS Modules: `Keypad.module.css` owns the four-column grid and two-column equals key; `ExpressionInput.module.css` owns wrapping help text. Other components have matching modules, while `styles.css` retains only shared base styles and theme variables.
 - Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component or custom hook is required.
