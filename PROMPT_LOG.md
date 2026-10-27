@@ -216,3 +216,43 @@ Outcome: implemented exponentiation, square root, and postfix percentage with th
 ```text
 ok continue with the implementation
 ```
+
+## Prompt 17 — plan frontend controls for optional operations
+
+Date: 2026-10-25
+Tool: Codex desktop
+Context: prompt logging resumed before this entry; the pause/resume instructions and excluded messages are not recorded.
+Outcome: proposed a three-button advanced row, square-root insertion/wrapping, input guidance, and verification steps for review and approval. Application code was not changed.
+
+```text
+ok now let's add support for the new operations on the front, first explain the plan for review and approval
+```
+
+## Prompt 18 — implement frontend controls for optional operations
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: added Power, Square root, and Percentage controls, square-root template insertion/selection wrapping, and syntax/percentage help. All 37 tests and TypeScript/production build pass; verified controls against Go and refreshed desktop/mobile screenshots.
+
+```text
+ok continue with the implementation
+```
+
+## Prompt 19 — reorder the keypad and widen equals
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: reordered the keypad into the requested six rows, made equals span two columns, removed the separate advanced-row grid, and refreshed documentation/screenshots. All 37 frontend tests and the TypeScript/production build pass.
+
+```text
+ok i want to reorder the buttons on the calculator
+
+1. exponentiation, square root, clear, deletion
+2. (, ), percentage, division
+3. 7, 8, 9 , multiplication
+4. 4 ,5, 6, +
+5. 1, 2, 3, −
+6. 0, ., =
+
+and lets make the equal twice the with of a normal button.
+```
