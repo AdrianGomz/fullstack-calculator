@@ -18,6 +18,10 @@ describe('physical keyboard editing', () => {
     ['(+*/%^)', '('], ['(-*/+)', '(-'], ['(.5)', '(0.5)'],
     ['2^3', '2^(3)'], ['2^+*/%3', '2^(3)'],
     ['abc', '0'], ['qrteE√×÷−💡 ', '0'], ['s9', 'sqrt(9)'],
+    ['2s9', '2*sqrt(9)'], ['2(3+4)', '2*(3+4)'], ['1.5s4', '1.5*sqrt(4)'],
+    ['5.(2)', '5.*(2)'], ['2^3s9', '2^(3*sqrt(9))'],
+    ['(2)(3+4)', '(2)*(3+4)'], ['(2)s9', '(2)*sqrt(9)'],
+    ['s9{ArrowRight}(2)', 'sqrt(9)*(2)'], ['2^3{ArrowRight}(4)', '2^(3)*(4)'],
   ])('edits %j as %j', async (keys, expected) => {
     const user = userEvent.setup()
     render(<App />)
@@ -89,6 +93,31 @@ describe('physical keyboard editing', () => {
     await user.keyboard('a')
     expect(input()).toHaveValue('12')
     expect(screen.getByRole('status')).toHaveTextContent('12')
+  })
+
+  it.each([
+    ['2s9', '2*sqrt(9)', 6], ['2(3+4)', '2*(3+4)', 14],
+    ['(2)s9', '(2)*sqrt(9)', 6], ['(2)(3+4)', '(2)*(3+4)', 14],
+  ] as const)('submits explicit multiplication from typed %s', async (keys, expression, result) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ result }) })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(input(), keys + '=')
+    expect(await screen.findByRole('status')).toHaveTextContent(String(result))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ expression })
+  })
+
+  it('keeps pasted grouping literal and preserves numeric selection wrapping', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(input())
+    await user.paste('2(3+4)')
+    expect(input()).toHaveValue('2(3+4)')
+    await user.clear(input())
+    await user.type(input(), '25')
+    input().setSelectionRange(0, 2)
+    await user.keyboard('s')
+    expect(input()).toHaveValue('sqrt(25)')
   })
 
   it('preserves accepted paste precedence and submits with equals exactly once', async () => {

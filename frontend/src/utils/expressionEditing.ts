@@ -35,7 +35,7 @@ export function editExpression(before: ExpressionSnapshot, key: string): Express
   const from = getOperatorReplacementStart(value, key, start, end)
   if (key === 'sqrt' || key === '^') {
     const selected = replacesZero || from !== start ? '' : value.slice(start, end)
-    const prefix = key === 'sqrt' ? 'sqrt(' : '^('
+    const prefix = key === 'sqrt' ? `${text}(` : '^('
     const template = `${prefix}${selected})`
     const caret = from + (selected ? template.length : prefix.length)
     return { value: value.slice(0, from) + template + value.slice(end), start: caret, end: caret }

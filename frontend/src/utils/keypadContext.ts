@@ -1,5 +1,5 @@
 // null means ignore this key. Otherwise return its contextual insertion text.
-// Template keys remain named actions for Calculator to expand.
+// Template prefixes can include multiplication for the shared editor to expand.
 export function getContextualKey(expression: string, key: string, start: number, end: number): string | null {
   if (start !== end) return key
 
@@ -15,5 +15,6 @@ export function getContextualKey(expression: string, key: string, start: number,
   }
 
   if ((previous === ')' || previous === '%') && /^[0-9]$/.test(key)) return `*${key}`
+  if ((/[0-9]\.?$/.test(before) || previous === ')') && (key === 'sqrt' || key === '(')) return `*${key}`
   return key
 }

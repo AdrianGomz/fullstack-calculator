@@ -462,15 +462,47 @@ describe('calculator form', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('inserts a square-root template at the cursor without inferring multiplication', async () => {
+  it('inserts multiplication and a square-root template after a number at the cursor', async () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
     await user.type(field, '2+3')
     field.setSelectionRange(1, 1)
     await user.click(screen.getByRole('button', { name: 'Square root' }))
-    expect(field).toHaveValue('2sqrt()+3')
-    await waitFor(() => expect(field.selectionStart).toBe(6))
+    expect(field).toHaveValue('2*sqrt()+3')
+    await waitFor(() => expect(field.selectionStart).toBe(7))
+  })
+
+  it.each([
+    ['12.5', 'Square root', '12.5*sqrt()', 10],
+    ['12.5', 'Open parenthesis', '12.5*(', 6],
+    ['0', 'Square root', 'sqrt()', 5],
+    ['0', 'Open parenthesis', '(', 1],
+    ['2*', 'Square root', '2*sqrt()', 7],
+    ['(2)', 'Square root', '(2)*sqrt()', 9],
+    ['(2)', 'Open parenthesis', '(2)*(', 5],
+    ['sqrt(9)', 'Square root', 'sqrt(9)*sqrt()', 13],
+    ['2^(3)', 'Open parenthesis', '2^(3)*(', 7],
+  ] as const)('adds %s followed by %s without duplicate multiplication', async (initial, name, expected, caret) => {
+    const user = userEvent.setup()
+    render(<App />)
+    await loadExpression(user, initial)
+    await user.click(screen.getByRole('button', { name }))
+    expect(expressionInput()).toHaveValue(expected)
+    const field = expressionInput() as HTMLInputElement
+    await waitFor(() => expect(field.selectionStart).toBe(caret))
+    expect(field.selectionEnd).toBe(caret)
+  })
+
+  it('counts multiplication inserted before a root toward the length limit', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await loadExpression(user, '1'.repeat(250))
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    expect((expressionInput() as HTMLInputElement).value).toHaveLength(257)
+    await user.click(submitButton())
+    expect(screen.getByRole('alert')).toHaveTextContent('256 characters')
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('inserts percentage at the selection and supports Backspace', async () => {
@@ -528,7 +560,7 @@ describe('calculator form', () => {
     fireEvent.change(field, { target: { value: '1'.repeat(251) } })
     field.setSelectionRange(251, 251)
     await user.click(screen.getByRole('button', { name: 'Square root' }))
-    expect(field.value.length).toBe(257)
+    expect(field.value.length).toBe(258)
     await user.click(submitButton())
     expect(screen.getByRole('alert')).toHaveTextContent('256 characters')
     expect(mockFetch).not.toHaveBeenCalled()

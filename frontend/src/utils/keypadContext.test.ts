@@ -22,7 +22,7 @@ describe('keypad context', () => {
     for (const key of ['0', '4', '9']) {
       expect(getContextualKey(expression, key, expression.length, expression.length)).toBe(`*${key}`)
     }
-    for (const key of ['sqrt', '(', '.', '+', '-', 'Backspace']) {
+    for (const key of ['.', '+', '-', 'Backspace']) {
       expect(getContextualKey(expression, key, expression.length, expression.length)).toBe(key)
     }
   })
@@ -37,8 +37,29 @@ describe('keypad context', () => {
   })
 
   it.each(['', '0', '12', '(2+3', '(0.5', '2*-'])('preserves ordinary insertion after %j', expression => {
-    for (const key of ['4', '.', '-', '*', 'sqrt', 'Backspace']) {
+    for (const key of ['4', '.', '-', '*', 'Backspace']) {
       expect(getContextualKey(expression, key, expression.length, expression.length)).toBe(key)
     }
+  })
+
+  it.each(['2', '12.5', '.5', '5.', '-2', '2^3', '(2+3', '2 \t', '(2)', 'sqrt(9)', '2^(3)', '((2))', '(2) \t'])('adds multiplication before a root or group after %j', expression => {
+    for (const key of ['sqrt', '(']) {
+      expect(getContextualKey(expression, key, expression.length, expression.length)).toBe(`*${key}`)
+    }
+  })
+
+  it.each(['', '.', '(', '2+', '2*', '2/-', 'sqrt(', '50%'])('keeps root/group insertion unchanged after %j', expression => {
+    for (const key of ['sqrt', '(']) {
+      expect(getContextualKey(expression, key, expression.length, expression.length)).toBe(key)
+    }
+  })
+
+  it('preserves selections and uses the numeric prefix at the cursor', () => {
+    expect(getContextualKey('12', 'sqrt', 1, 1)).toBe('*sqrt')
+    expect(getContextualKey('12', '(', 1, 1)).toBe('*(')
+    expect(getContextualKey('12', 'sqrt', 1, 2)).toBe('sqrt')
+    expect(getContextualKey('(2)+3', 'sqrt', 3, 3)).toBe('*sqrt')
+    expect(getContextualKey('(2)+3', '(', 3, 3)).toBe('*(')
+    expect(getContextualKey('(2)+3', 'sqrt', 3, 4)).toBe('sqrt')
   })
 })
