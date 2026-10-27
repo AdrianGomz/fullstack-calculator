@@ -9,7 +9,7 @@ Build a full-stack calculator with a React frontend that calls a Go REST microse
 
 The assignment requires addition, subtraction, multiplication, and division; frontend and backend validation; a responsive UI; JSON responses; unit tests for both layers; coverage reports; setup/API/design documentation; and submission of a Git repository link and prompts used.
 
-The assignment treats exponentiation, square root, percentage, and Docker as optional. The three arithmetic operations are now implemented in the backend after completion of the required functionality. Dedicated frontend controls and help are implemented; Docker is not implemented.
+The assignment treats exponentiation, square root, percentage, and Docker as optional. The three arithmetic operations are now implemented in the backend after completion of the required functionality. Dedicated frontend controls and help are implemented; Docker Compose packaging is implemented and verified locally.
 
 User-approved extension: evaluate complete expressions, including nested parentheses. `2+3+5/4` yields `6.25`; `(2+3+5)/4` yields `2.5`.
 
@@ -233,7 +233,7 @@ Verification complete on 2026-10-26: 37 frontend tests pass with 98.05% statemen
 
 ### Other optional work
 
-Docker: after the ordinary local workflow works, use a multi-stage build and either serve the built frontend from Go in one container or document a Compose setup. Verify build/run instructions before advertising support.
+Docker: the two-container Compose workflow is implemented and verified. Architecture, files, and measured results are documented below.
 
 ## Delivery checklist
 
@@ -284,3 +284,47 @@ Apply these rules to keypad clicks with a collapsed selection, using the input c
 Implementation: `frontend/src/utils/keypadContext.ts` provides a pure context-editing helper. Calculator runs its guard before operator substitution and reuses its existing insertion/template/caret handling. The substitution matrix is intact for other contexts. Helper and component tests cover allowed/blocked keys, minus and decimal/nested-group cases, both templates, automatic multiplication, cursor/selection behavior, whitespace, and exact submitted expressions. README and the frontend guide describe the rules. Backend grammar and API remain unchanged because the frontend sends an explicit `*`.
 
 Verification of parentheses/number-entry rules (2026-10-26): all 163 frontend tests pass; statement coverage is 98.69%, branch coverage is 95.48%, and line/function coverage is 100%. TypeScript checks and the production build pass.
+
+## Docker implementation
+
+Implemented and verified on 2026-10-27, following the plan drafted on 2026-10-26. Docker Desktop was available at `/Applications/Docker.app/Contents/Resources/bin/docker`, outside the initial shell PATH. Both services build and run locally; no application arithmetic or editing behavior changed.
+
+### Architecture
+
+Use Docker Compose with two services, keeping the Go API as a separate microservice:
+
+```text
+Browser -> 127.0.0.1:8081 -> frontend (Nginx :8080)
+                              |-- / and static assets -> built React files
+                              |-- /api/* -> backend:8080, preserving the path
+                              `-- /health -> backend:8080/health
+```
+
+The browser continues calling the relative `/api/v1/calculate` URL. Nginx replaces Vite's development proxy in this container setup, so there is no frontend API-host variable or CORS change. Compose service names resolve within its default network; browser code must not call `http://backend:8080` directly. Only Nginx publishes a host port, bound to `127.0.0.1`; the backend port remains available inside the Compose network.
+
+### Files and responsibilities
+
+| File | Implementation |
+| --- | --- |
+| `backend/Dockerfile` | Multi-stage build: compile with `golang:1.26.10-alpine3.24`, compatible with the Go 1.25 minimum in `go.mod`; set `CGO_ENABLED=0` and build `./cmd/server`. Copy only the executable into an `alpine:3.24.0` runtime, run as UID 10001 on port 8080, and use exec-form startup so Go receives SIGTERM directly. |
+| `backend/.dockerignore` | Exclude local executables, coverage, editor files, and local environment files from the backend build context. |
+| `frontend/Dockerfile` | Multi-stage build: use `node:24.21.0-alpine3.24`, meeting `engines`, copy the package manifests first, run `npm ci`, copy source, and run `npm run build`. Copy only `dist` and Nginx configuration into `nginx:1.30.6-alpine3.24`, configured to run without root on port 8080. |
+| `frontend/nginx.conf` | Serve built React assets and proxy `/api/` and exact `/health` to Go. Preserve API paths, JSON error bodies, and HTTP statuses; never serve the React HTML fallback for API requests. Send logs to stdout/stderr and use writable temporary paths for the non-root runtime. |
+| `frontend/.dockerignore` | Exclude host `node_modules`, `dist`, coverage, editor files, and local environment files; install/build inside the image. |
+| `compose.yaml` | Build from `./backend` and `./frontend`, name services `backend` and `frontend`, set backend `PORT=8080`, and publish `127.0.0.1:${CALCULATOR_HTTP_PORT:-8081}:8080` for frontend only. Add HTTP health checks and make frontend depend on a healthy backend. Allow at least ten seconds for backend shutdown, exceeding Go's five-second graceful-shutdown window. |
+
+Base images use explicit version tags rather than `latest`. Their published manifests include Linux ARM64 and AMD64; no CPU architecture is hardcoded. Build stages contain compilers/dependencies; runtime images contain only what the running services need. No database, bind mounts, persistent volumes, credentials, or mandatory `.env` file are required. This is a built application workflow; continue using the existing Go/Vite commands for hot reload.
+
+### Verification results
+
+- [x] Added both multi-stage Dockerfiles, per-app ignore files, and non-root Nginx configuration. Clean builds used `npm ci` and Go compilation inside Linux, excluding host dependencies and binaries.
+- [x] Validated Compose configuration and started both services with `docker compose up --build --wait --wait-timeout 60`. Both HTTP health checks passed; Nginx configuration validation passed.
+- [x] Passed 20 HTTP checks through Nginx on each of ports 8081 and 9090: HTML/assets, health/query forwarding, calculations, syntax/domain/division errors with positions, schema/media/body validation, and JSON API 404/405 responses including the Allow header. A real browser calculation returned `12.5`.
+- [x] Confirmed non-root runtime users (Go UID 10001, Nginx UID 101), private backend port, and localhost-only frontend port. Go received SIGTERM, logged graceful shutdown, and exited with code 0.
+- [x] Recreated the backend with a different internal IP and verified Nginx recovered through Docker DNS. `docker compose down` removed both containers and their network; the port override and subsequent default-port startup worked.
+- [x] Ran the Go test suite and all 163 frontend tests in the Linux build stages with network access disabled. The frontend TypeScript/production build passed inside its image.
+- [x] Updated README with runnable prerequisites, build/start, health/API checks, logs, port override, rebuild, stop, and optional container-based unit-test commands.
+
+Verification environment: Docker Desktop 4.97.0, Engine 29.9.2, Compose 5.6.1, Linux ARM64. ARM64 execution is verified; AMD64 image-manifest availability is verified, but AMD64 execution was not tested. The two runtime containers are left running at `http://127.0.0.1:8081/`. External deployment remains outside this milestone.
+
+References: Docker documents [multi-stage builds](https://docs.docker.com/build/building/multi-stage/), [Compose service networking](https://docs.docker.com/compose/how-tos/networking/), [health-based startup ordering](https://docs.docker.com/compose/how-tos/startup-order/), and [`docker compose up` options](https://docs.docker.com/reference/cli/docker/compose/up/).

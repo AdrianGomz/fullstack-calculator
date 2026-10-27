@@ -359,3 +359,23 @@ Outcome: added a pure keypad-context helper and integrated it before operator su
 ```text
 ok continue with the implementation
 ```
+
+## Prompt 28 — plan Docker packaging and document run instructions
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: documented a proposed two-container Compose setup with multi-stage Go/React builds, Nginx proxying, private backend networking, health checks, and a verification sequence. Added clearly labeled planned Docker commands to README for build/start, API checks, logs, port override, rebuild, and shutdown. Docker files and application code were not changed; container verification is pending because the Docker CLI is unavailable in the current execution environment.
+
+```text
+ok now let's use docker to run the apps, create the plan for the docker file and put instructions in the read me on how to run the apps
+```
+
+## Prompt 29 — implement Docker packaging
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: added multi-stage Dockerfiles and per-app ignore files, non-root Nginx static serving/API proxying, and a two-service Compose configuration with private backend networking, health checks, port override, and shutdown grace periods. Located Docker Desktop outside the initial PATH, built and ran both apps, passed 20 HTTP checks on each of ports 8081 and 9090, verified browser calculation, clean shutdown, non-root users, and DNS recovery after a backend IP change. Go tests and all 163 frontend tests pass inside the Linux build stages. Updated documentation and left the calculator running at http://127.0.0.1:8081/.
+
+```text
+implement the plan
+```

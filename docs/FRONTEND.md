@@ -201,7 +201,7 @@ Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/
 
 Vite serves the frontend on `127.0.0.1:5173` and proxies `/api` to `127.0.0.1:8080`. `API_PROXY_TARGET` overrides the backend target. This keeps browser requests on one origin during development.
 
-The production build outputs static assets to `frontend/dist/`. Production hosting still needs to serve those assets and route `/api` to Go; local integration does not establish a deployed production setup. Run/build commands are in the [README](../README.md).
+The production build outputs static assets to `frontend/dist/`. The Docker Compose workflow builds them in a Node stage and serves them through a non-root Nginx container on `127.0.0.1:8081`. Nginx routes `/api/` and `/health` to the Go service by its Compose name and resolves Docker DNS again after backend recreation. Browser requests remain relative; no frontend API-host setting or CORS change is needed. The Vite proxy is used only for local development. Container builds and integration are verified locally on Linux ARM64; external production deployment is not established. Run/build and Docker commands are in the [README](../README.md#run-with-docker).
 
 ## Patterns and tradeoffs
 

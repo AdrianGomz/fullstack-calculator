@@ -65,6 +65,99 @@ Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/scre
 
 ![Calculator desktop preview](docs/screenshots/desktop.png)
 
+## Run with Docker
+
+The [Docker implementation](PLAN.md#docker-implementation) uses two containers: Nginx serving the built React app, and the Go API on a private Compose network. Nginx forwards `/api/` and `/health` to Go, so the browser uses one address. Compose services can reach each other by name on the default network. See [Docker's networking documentation](https://docs.docker.com/compose/how-tos/networking/).
+
+**Verified on 2026-10-27:** images build from source and both services pass their health checks on Docker Desktop 4.97.0 / Engine 29.9.2 / Compose 5.6.1 (Linux ARM64). The Go tests and all 163 frontend tests also pass inside the Linux build stages. Published base-image manifests support AMD64 as well; execution on AMD64 was not tested.
+
+### Prerequisites
+
+- A running Docker engine with Docker Compose v2 or newer supporting `--wait` (for example, Docker Desktop).
+- Internet access for the initial image pulls and npm installation.
+- Host port `8081` available, or use the override below. Go and Node do not need to be installed on the host.
+
+On macOS, if Docker Desktop is installed but `docker` is not on your shell's PATH, enable its CLI tools in Docker Desktop or add them for the current terminal:
+
+```bash
+export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
+```
+
+### Build and start both apps
+
+From the repository root:
+
+```bash
+docker compose config
+docker compose up --build --wait --wait-timeout 60
+```
+
+`--wait` runs the services in the background and waits for readiness; health checks cover the backend HTTP endpoint and frontend static serving. Frontend startup waits for a healthy backend. See [Docker's command reference](https://docs.docker.com/reference/cli/docker/compose/up/).
+
+Open [the containerized calculator](http://127.0.0.1:8081). Only this frontend/proxy port is published; backend port `8080` stays inside the Compose network. The existing local Go server on host port `8080` can remain running.
+
+### Check the running services
+
+```bash
+docker compose ps
+curl -i http://127.0.0.1:8081/health
+curl -i http://127.0.0.1:8081/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"sqrt(16)+2^(3)+50%"}'
+```
+
+Expected: health returns HTTP `200` with `{"status":"ok"}`, and the calculation returns HTTP `200` with `{"result":12.5}`. Both requests pass through Nginx to Go. The API examples below use port `8080` for the ordinary local workflow; use `8081` for the Docker workflow.
+
+View logs from both apps (Ctrl+C exits log viewing without stopping the services):
+
+```bash
+docker compose logs -f frontend backend
+```
+
+### Change the browser port
+
+The `CALCULATOR_HTTP_PORT` setting changes only the host port:
+
+```bash
+CALCULATOR_HTTP_PORT=9090 docker compose up --build --wait --wait-timeout 60
+```
+
+Then open [the calculator on port 9090](http://127.0.0.1:9090) and use port `9090` for curl checks. No `.env` file is required. Use the same override on subsequent `up` commands to retain the chosen port.
+
+### Rebuild or stop
+
+This workflow packages built assets; source changes require a rebuild. For hot reload, use the local Go/Vite workflow instead.
+
+```bash
+docker compose up --build --wait --wait-timeout 60
+```
+
+Stop and remove this project's containers and Compose network:
+
+```bash
+docker compose down
+```
+
+The setup stores no application data or persistent volumes. Stopping it does not stop the Go/Vite processes started outside Docker.
+
+### Container design and verification
+
+- [Backend Dockerfile](backend/Dockerfile): Go `1.26.10-alpine3.24` build stage, statically linked executable, and Alpine `3.24.0` runtime as UID 10001. This toolchain satisfies the module's Go 1.25 minimum without changing `go.mod`.
+- [Frontend Dockerfile](frontend/Dockerfile): Node `24.21.0-alpine3.24`, lockfile installation with `npm ci`, TypeScript/Vite build, and Nginx `1.30.6-alpine3.24` runtime as its `nginx` user (UID 101).
+- [Nginx configuration](frontend/nginx.conf): serves static assets and preserves API paths, query strings, JSON errors, and status codes. Go retains the 4096-byte body limit. Runtime files use writable temporary paths; logs go to stdout/stderr.
+- [Compose configuration](compose.yaml): private backend port, localhost-only frontend publication, HTTP health checks, and ten-second shutdown grace periods. Each app has a `.dockerignore` excluding local build output, dependencies, coverage, and environment files.
+
+Verification included 20 HTTP checks on each of ports 8081 and 9090 (HTML/assets, health, arithmetic, positioned errors, malformed input, body limits, and API 404/405 responses), a browser calculation returning `12.5`, non-root process checks, and successful cleanup/restart. Go handled SIGTERM and exited with code 0. Nginx recovered after the backend was recreated with a different internal IP. Runtime verification was on Linux ARM64.
+
+An image build runs the application builds, but does not run unit tests automatically. To repeat the unit tests in the same Linux build environments:
+
+```bash
+docker build --target build -t calculator-backend-build-check ./backend
+docker run --rm --network none -e CGO_ENABLED=0 calculator-backend-build-check go test ./...
+docker build --target build -t calculator-frontend-build-check ./frontend
+docker run --rm --network none calculator-frontend-build-check npm test -- --run
+```
+
 ## Try the current endpoints
 
 Health check:
@@ -155,7 +248,7 @@ Browser verification used Vite with the real Go backend: precedence, parentheses
 
 ## Remaining delivery work
 
-Publish the repository and coverage artifacts for evaluation. The optional arithmetic operations and their frontend controls/help are implemented. Docker remains optional future work.
+Publish the repository and coverage artifacts for evaluation. The optional arithmetic operations and their frontend controls/help are implemented. Docker packaging and local container verification are complete; the containers have not been deployed to an external host.
 
 ## Design decisions and assumptions
 
@@ -166,7 +259,7 @@ Publish the repository and coverage artifacts for evaluation. The optional arith
 - One expression field supports multiple operators and parentheses. Go enforces full validation; React checks presence/length and shows server errors with positions; it never evaluates arithmetic locally.
 - Binary floating-point can produce decimal rounding artifacts; the application is not intended for exact financial arithmetic.
 - Calculations are stateless; no accounts or database are required.
-- Advanced operations and Docker follow completion of the required functionality.
+- Docker Compose runs the built React app behind Nginx and keeps Go as a separate service. Both runtimes use non-root users; builders and host dependencies are excluded from the runtime images. Nginx resolves the backend through Docker DNS to recover after container recreation.
 
 ## Submission status
 
