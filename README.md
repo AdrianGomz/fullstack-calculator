@@ -51,15 +51,19 @@ Open [the calculator](http://127.0.0.1:5173). Vite proxies `/api` to `http://127
 API_PROXY_TARGET=http://127.0.0.1:9090 npm run dev
 ```
 
-Enter an expression and press Enter or `=`. The keypad inserts at the cursor and replaces selected text. The expression starts at `0`; Clear restores `0` and removes the result/errors. Numbers and parentheses replace this lone zero; operators retain it, and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Inputs are disabled while waiting, and requests time out after ten seconds. Editing clears stale output. Syntax errors focus the corresponding character, including an end-of-expression position when a token is missing.
+Enter an expression and press Enter or `=`. The keypad and physical keyboard share editing rules and insert at the cursor or replace selected text. The expression starts at `0`; Clear restores `0` and removes the result/errors. Numbers and parentheses replace this lone zero; operators retain it, and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Inputs are disabled while waiting, and requests time out after ten seconds. Editing clears stale output. Syntax errors focus the corresponding character, including an end-of-expression position when a token is missing.
 
-The page contains a compact “Calculator” wordmark, a centered calculator card, and the footer credit “By: Isaac Gomez Ocon.” on both desktop and mobile. `App` renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
+The page contains an `App` component that renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
 
-The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^()` with the cursor inside (for example, `2^()`), or wraps selected text in `^(...)`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists the syntax and shows `10% = 10/100`. Percentage means division by 100: `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
+The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^()` with the cursor inside (for example, `2^()`), or wraps selected text in `^(...)`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists allowed characters and the `s` Square root shortcut. Percentage means division by 100: `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
 
-At the end of an expression, keypad operator buttons replace incompatible or repeated trailing operators: `2+` then Divide becomes `2/`. Minus can follow multiplication, division, and bare power for negative operands; repeated Percentage stays a single `%`. Power substitution applies only to a bare trailing `^` after its parentheses are deleted. The complete substitution table and examples are in the [frontend guide](docs/FRONTEND.md#trailing-operator-keypad-substitution).
+At the end of an expression, typed operators and keypad operator buttons replace incompatible or repeated trailing operators: `2+` then Divide becomes `2/`. Minus can follow multiplication, division, and bare power for negative operands; repeated Percentage stays a single `%`. Power substitution applies only to a bare trailing `^` after its parentheses are deleted. The complete substitution table and examples are in the [frontend guide](docs/FRONTEND.md#trailing-operator-keypad-substitution).
 
-After an opening parenthesis, keypad entry allows digits, Square root, Minus, nested parentheses, or Decimal (inserting `0.`), and ignores other operators or an empty closing parenthesis. This also guards the inside of `sqrt()` and `^()` and preserves a pending negative sign. Digit clicks after `)` or `%` insert multiplication: `(2+3)` then `4` becomes `(2+3)*4`, and `50%` then `2` becomes `50%*2`. The rules use cursor context, including whitespace, and preserve surrounding text. Keyboard typing, pasting, and selected-text replacement retain their existing behavior; see [keypad context rules](docs/FRONTEND.md#parentheses-guards-and-multiplication-before-digits).
+After an opening parenthesis, typed/keypad entry allows digits, Square root, Minus, nested parentheses, or Decimal (inserting `0.`), and ignores other operators or an empty closing parenthesis. This also guards the inside of `sqrt()` and `^()` and preserves a pending negative sign. Digit clicks after `)` or `%` insert multiplication: `(2+3)` then `4` becomes `(2+3)*4`, and `50%` then `2` becomes `50%*2`. The rules use cursor context, including whitespace, and preserve surrounding text. Literal paste and selected-text replacement do not apply these transformations; see [keypad context rules](docs/FRONTEND.md#parentheses-guards-and-multiplication-before-digits).
+
+Type only `0-9`, `+ - * / ^ % ( ) .`. Press lowercase `s` to perform the same Square root action as `√`; other unsupported typed characters, including other letters and spaces, are ignored. Both `s` and `√` insert `sqrt()` or wrap selected text; their numeric arguments remain editable. Typing `^` inserts `^()` just like Power. Enter and a typed `=` calculate; navigation, selection, copy/cut/paste, Backspace, and Delete remain available. There is no custom undo/redo support.
+
+Pastes and plain-text drops containing any forbidden character are rejected entirely, including `sqrt(...)`, `√`, and whitespace. Accepted arithmetic text is inserted literally, preserving precedence: pasting `2^3+4` keeps it unchanged rather than adding power parentheses. The backend validates complete pasted expressions. See [keyboard and clipboard details](docs/FRONTEND.md#physical-keyboard-clipboard-and-browser-input).
 
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 
@@ -69,19 +73,13 @@ Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/scre
 
 The [Docker implementation](PLAN.md#docker-implementation) uses two containers: Nginx serving the built React app, and the Go API on a private Compose network. Nginx forwards `/api/` and `/health` to Go, so the browser uses one address. Compose services can reach each other by name on the default network. See [Docker's networking documentation](https://docs.docker.com/compose/how-tos/networking/).
 
-**Verified on 2026-10-27:** images build from source and both services pass their health checks on Docker Desktop 4.97.0 / Engine 29.9.2 / Compose 5.6.1 (Linux ARM64). The Go tests and all 163 frontend tests also pass inside the Linux build stages. Published base-image manifests support AMD64 as well; execution on AMD64 was not tested.
+**Verified on 2026-10-27:** images build from source and both services pass their health checks on Docker Desktop 4.97.0 / Engine 29.9.2 / Compose 5.6.1 (Linux ARM64). The Go tests and all 229 frontend tests also pass inside the Linux build stages. Published base-image manifests support AMD64 as well; execution on AMD64 was not tested.
 
 ### Prerequisites
 
 - A running Docker engine with Docker Compose v2 or newer supporting `--wait` (for example, Docker Desktop).
 - Internet access for the initial image pulls and npm installation.
 - Host port `8081` available, or use the override below. Go and Node do not need to be installed on the host.
-
-On macOS, if Docker Desktop is installed but `docker` is not on your shell's PATH, enable its CLI tools in Docker Desktop or add them for the current terminal:
-
-```bash
-export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
-```
 
 ### Build and start both apps
 
@@ -238,9 +236,9 @@ npm run typecheck
 npm run build
 ```
 
-All **163 tests pass**, with **98.69% statement coverage**, **95.48% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
+All **229 tests pass**, with **96.66% statement coverage**, **94.92% branch coverage**, **98.54% line coverage**, and **100% function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
 
-Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, the full operator-substitution matrix, negative operands, opening-parenthesis guards, multiplication before digit keys after `)`/`%`, template preservation, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
+Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, the full operator-substitution matrix, negative operands, opening-parenthesis guards, multiplication before digit keys after `)`/`%`, template preservation, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests also cover physical-keyboard/keypad parity, forbidden-character and paste/drop rejection, virtual-keyboard input fallbacks, and native editing controls. These checks do not substitute for real HTTP verification.
 
 Browser verification used Vite with the real Go backend: precedence, parentheses, division-by-zero feedback, Clear, and recovery after deliberately stopping/restarting the backend. The advanced controls were subsequently verified through real API requests for `2^3^2`, `sqrt(9)`, `200*10%`, and `sqrt(-1)`, including selection wrapping. Desktop and 320px mobile layouts were visually checked; the mobile page has no horizontal overflow and keypad buttons remain 52px tall. Screenshots are linked above. Loading and timeout behavior also have automated coverage.
 

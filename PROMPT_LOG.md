@@ -379,3 +379,44 @@ Outcome: added multi-stage Dockerfiles and per-app ignore files, non-root Nginx 
 ```text
 implement the plan
 ```
+
+## Prompt 30 — plan physical-keyboard validation
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: reviewed the existing input/keypad editing code and documented a proposed shared keyboard/keypad action path, allowed-character restrictions, square-root-button-only entry, and clipboard behavior preserving pasted precedence. Planned tests, documentation, and Docker verification for approval. Application code was not changed.
+
+```text
+We have input validation with the keyboard keys of the app but we don't have the same validation with keyboard input. Can we implement the same validations that we have? also make sure that we can not type any other character that is not present in the calculator. for square root because we have don't have a key, can be omitted, so we can only add clicking in the app button.
+As always before implementing anything tell me the plan first for approval
+```
+
+## Prompt 31 — implement shared physical-keyboard validation
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: implemented shared editing helpers and an editor hook for physical keys and keypad clicks. Restricted new text to calculator characters, kept square-root creation button-only, rejected entire invalid pastes/drops, preserved literal pasted precedence, and covered browser input fallbacks. Updated documentation, passed all 222 tests locally and in the Linux build stage, and verified the rebuilt Docker app with real keyboard/paste input.
+
+```text
+ok continue with the implementation. It's ok to reject paste of invalid input.
+```
+
+## Prompt 32 — retain calculation keys without custom undo/redo
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: retained Enter and `=` calculation, removed custom undo/redo handlers and history, and left modifier shortcuts to the browser. Final tests and Docker verification passed.
+
+```text
+we can keep that enter and = short cut just remove the undo/redo
+```
+
+## Prompt 33 — map s to square root
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: mapped lowercase `s` to the shared Square root action, including zero replacement, selection wrapping, nested roots, and virtual-keyboard input. Kept paste/drop restrictions and native Ctrl/Cmd+S behavior. Updated input guidance and documentation; all 229 tests pass locally and in the Linux build stage, and the production build passes.
+
+```text
+for square root map the key "s"
+```

@@ -4,7 +4,7 @@ This document explains the current implementation so its behavior and design cho
 
 ## Responsibility and boundaries
 
-The frontend lets a user edit an expression, submit it, and understand the result or error. Go owns parsing, precedence, parentheses, and arithmetic. React sends the original input unchanged and never calculates a result locally.
+The frontend lets a user edit an expression, submit it, and understand the result or error. Go owns parsing, precedence, parentheses, and arithmetic. React sends the displayed expression unchanged and never calculates a result locally.
 
 For example, entering `2+3+5/4` sends:
 
@@ -26,14 +26,18 @@ The full request/error contract is in [API.md](API.md).
 | --- | --- |
 | [main.tsx](../frontend/src/main.tsx) | Mounts React and imports CSS. Uses React StrictMode during development. |
 | [App.tsx](../frontend/src/App.tsx) | Renders the header, main page layout, calculator, and footer. |
-| [Calculator.tsx](../frontend/src/components/Calculator.tsx) | Owns expression/result/error/pending state, input focus/selection, validation, submission, and keypad editing. |
-| [ExpressionInput.tsx](../frontend/src/components/ExpressionInput.tsx) | Renders the controlled expression field, label, help text, character count, and accessibility attributes. |
+| [Calculator.tsx](../frontend/src/components/Calculator.tsx) | Coordinates the editor hook, result/error/pending state, positioned API feedback, validation, and submission. |
+| [ExpressionInput.tsx](../frontend/src/components/ExpressionInput.tsx) | Renders the controlled field/help/count and maps keyboard, paste/drop, and browser input events to editing actions. |
 | [ResultPanel.tsx](../frontend/src/components/ResultPanel.tsx) | Displays result/loading/error feedback and readable error positions. |
 | [Keypad.tsx](../frontend/src/components/Keypad.tsx) | Renders accessible keys, forwards editing actions, and submits the containing form through the equals button. |
 | [operatorSubstitution.ts](../frontend/src/utils/operatorSubstitution.ts) | Pure helper that identifies the trailing operator range to replace during keypad editing. |
 | [operatorSubstitution.test.ts](../frontend/src/utils/operatorSubstitution.test.ts) | Tests the substitution matrix, negative operands, and boundaries of the editing rule. |
 | [keypadContext.ts](../frontend/src/utils/keypadContext.ts) | Pure helper that guards empty groups and inserts multiplication before digit keys after `)` or `%`. |
 | [keypadContext.test.ts](../frontend/src/utils/keypadContext.test.ts) | Tests cursor context, whitespace, template guards, and the boundaries of automatic multiplication. |
+| [useExpressionEditor.ts](../frontend/src/hooks/useExpressionEditor.ts) | Owns local expression state and cursor snapshots, restores selection, and guards browser input changes. |
+| [expressionEditing.ts](../frontend/src/utils/expressionEditing.ts) | Pure shared key actions, literal insertion/character validation, and changed-span detection. |
+| [expressionEditing.test.ts](../frontend/src/utils/expressionEditing.test.ts) | Tests character restrictions, literal paste, deletion, and changed spans. |
+| [Keyboard.test.tsx](../frontend/src/Keyboard.test.tsx) | Tests physical-keyboard/keypad parity, clipboard rules, native controls, browser input fallbacks, and pending-state protection. |
 | [calculator.ts](../frontend/src/api/calculator.ts) | Makes HTTP requests, validates responses, translates errors, and enforces a timeout. |
 | [styles.css](../frontend/src/styles.css) | Shared font imports, CSS variables, resets, focus/disabled behavior, reduced-motion support, and `sr-only`. |
 | [App.module.css](../frontend/src/App.module.css) | Page shell, centering, header/wordmark/footer, and their responsive rules. |
@@ -47,18 +51,18 @@ The full request/error contract is in [API.md](API.md).
 
 ## State model
 
-All calculator state is local to `Calculator`; nothing is persisted across reloads. `App` owns only page layout. The input, result panel, and keypad receive their data and callbacks through typed props.
+All calculator state is local to `Calculator` and its `useExpressionEditor` hook; nothing is persisted across reloads. `App` owns only page layout. The input, result panel, and keypad receive their data and callbacks through typed props.
 
 | Value | Meaning | Initial value |
 | --- | --- | --- |
-| `expression` | The exact text in the input, including spaces. | `"0"` |
+| `expression` | The exact displayed expression, including generated square-root calls. | `"0"` |
 | `result` | Last successful numeric result; `null` means no result. | `null` |
 | `error` | A `CalculationError` containing a message and optional position. | `null` |
 | `pending` | Whether a request is in progress; drives disabled/loading UI. | `false` |
 
 `result !== null` is checked explicitly so a valid answer of zero is displayed.
 
-Two refs support interaction without being display state: `input` points to the native input for selection/focus; `inFlight` is an immediate duplicate-submission guard. Unlike a state update, changing that guard does not wait for React to render.
+The coordinator uses two refs: `input` points to the native input for selection/focus; `inFlight` is an immediate duplicate-submission guard. Unlike a state update, changing that guard does not wait for React to render. The editor also keeps the latest value and selection restoration flag in refs so rapid keys use current state. It does not keep undo/redo history.
 
 ## Submission lifecycle
 
@@ -76,9 +80,9 @@ flowchart TD
     I --> J
 ```
 
-Both Enter in the input and the `=` button submit the same native form. There are no separate calculation paths for keyboard and mouse.
+Enter, a typed `=`, and the `=` button submit the same native form. A typed `=` calls `requestSubmit()` and is not inserted into the expression. There are no separate calculation paths for keyboard and mouse.
 
-Before a request, the frontend checks only:
+At submission, the frontend checks:
 
 1. The expression is not empty or whitespace-only.
 2. Its length is at most 256 Unicode code points, including whitespace.
@@ -93,33 +97,43 @@ Editing the expression clears the previous result and error, so an answer never 
 
 The keypad is an input aid. It does not call the API except when `=` submits the form.
 
-- The expression starts at `0`; Clear restores `0` and removes the result/error. On this lone zero, number and parenthesis keys replace it, operators retain it (for example, `0+`), and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Keyboard entry follows the same starting-zero rule, including typed `sqrt(...)`; paste and other text edits retain normal browser behavior. Zeros within longer expressions are preserved.
+- The expression starts at `0`; Clear restores `0` and removes the result/error. On this lone zero, number and parenthesis keys replace it, operators retain it (for example, `0+`), and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Physical-keyboard entry uses the same starting-zero rule. Square-root calls can be created through the button or lowercase `s`. An accepted paste replaces a lone zero and otherwise replaces the current selection or inserts at the cursor. Zeros within longer expressions are preserved.
 - Otherwise, numbers, operators, decimal points, and parentheses insert at the input cursor or replace selected text, subject to the keypad context and trailing-operator rules below.
 - The visible `×`, `÷`, and `−` buttons insert the API grammar's `*`, `/`, and `-` characters.
 - The keypad includes three advanced controls: Power (`xʸ`) inserts a balanced `^()` template, Square root (`√`) inserts a balanced `sqrt()` template, and Percentage inserts `%`. Accessible names are “Power”, “Square root”, and “Percentage”.
 - With no selection, Power and Square root place the cursor inside the new parentheses. With a selection, they wrap the selected text in `^(...)` or `sqrt(...)` and place the cursor after the closing parenthesis. For example, Power after `2` produces `2^()`, ready to enter the exponent. Surrounding text is preserved; these template actions do not infer multiplication.
 - Backspace removes selected text or the previous whole Unicode code point.
 - Clear resets the expression to `0`, clears the result and error, and focuses the input with the cursor after zero. Backspace and manual deletion can still leave an empty field, which is validated on submission.
-- After keypad editing, `requestAnimationFrame` restores the cursor after React has updated the controlled input.
+- The editor restores the cursor synchronously and again in `useLayoutEffect` after React renders, so fast typing uses the correct insertion point without waiting for an animation frame.
 
-Apart from replacing or retaining the lone zero as described above, physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication during typing, automatic bracket completion during typing, or automatic reuse of the previous answer. Balanced power and square-root templates are explicit keypad actions; typing `^` does not automatically add parentheses. The submitted expression stays in the field after success.
+### Physical keyboard, clipboard, and browser input
+
+Physical keys and keypad buttons call the same `editExpression` function. Typed `^` inserts `^()` with the cursor inside, `2+/` becomes `2/`, and `(2)` followed by `4` becomes `(2)*4`. Existing context/selection rules apply equally to both sources.
+
+New expression text is restricted to ASCII digits and `+ - * / ^ % ( ) .`. Lowercase `s` is a command, not literal expression text: it performs the same action as Square root, inserting `sqrt()` with the cursor inside or wrapping selected text in `sqrt(...)` with the cursor after the closing parenthesis. It also works inside parentheses and nested roots. Other letters (including uppercase `S`), spaces, scientific notation, and unsupported symbols are ignored. Use `s` or the Square root button, then edit the argument using numbers and operators. Validation checks newly inserted text rather than rejecting the existing function letters.
+
+Paste and plain-text drop are atomic: if any character is forbidden, the entire insertion is rejected with the expression, selection, and result/error feedback preserved. This includes pasted `sqrt(...)`, `√`, whitespace, and `=`. Accepted arithmetic text is inserted literally. Pasting `2^3+4` keeps that expression and its precedence; it does not replay the typed power-template action. Go validates the resulting complete expression, so literal paste may still produce a syntax error.
+
+Enter and a typed `=` calculate, and lowercase `s` invokes Square root. Arrow/Home/End navigation, Tab, selection, copy, cut, and paste remain available. Backspace and Delete use shared deletion actions; modified word-deletion remains browser-driven. Ctrl/Cmd shortcuts, including Ctrl/Cmd+S, are not intercepted: there is no custom undo/redo shortcut or history. The submitted expression stays in the field after success, and all editing remains disabled during a pending request.
+
+`ExpressionInput` maps physical keys and paste/drop events to callbacks. A native `beforeinput` listener covers cancelable virtual-keyboard input. An `onChange` fallback compares the changed span for autofill, composition, cut, and non-cancelable input, validates new text, and restores rejected changes. Single-character typing uses shared key actions; bulk replacement is literal. The parent input ref is exposed through `useImperativeHandle` for positioned errors and focus. There are no global keyboard listeners or added dependencies.
 
 ### Parentheses guards and multiplication before digits
 
-With no selected text, keypad editing inspects the preceding non-whitespace character at the cursor. These rules work within an expression as well as at its end; text after the cursor is preserved.
+With no selected text, keypad clicks and physical-keyboard editing inspect the preceding non-whitespace character at the cursor. These rules work within an expression as well as at its end; text after the cursor is preserved.
 
 - After `(`, allow digits, Square root, and Minus. Also allow another `(` for nested grouping, and make Decimal insert `0.`. Ignore Add, Multiply, Divide, Percentage, Power, and Close parenthesis while the group is empty.
 - After a minus directly following `(`, continue expecting an operand. Repeating Minus keeps a single sign, Decimal inserts `0.`, and other arithmetic operators or Close parenthesis are ignored. Thus `(-` then Divide stays `(-`, instead of applying substitution and creating `(/`.
 - Apply the same guards inside `sqrt()` and `^()`. The templates remain intact: Add inside `2^()` is ignored, while Minus produces `2^(-)` and a digit can then fill the exponent.
 - After `)` or `%`, a digit key inserts `*` and the digit. `(2+3)` then `4` becomes `(2+3)*4`; `50%` then `2` becomes `50%*2`; `sqrt(9)` then `2` becomes `sqrt(9)*2`. Subsequent digits extend the number normally. This does not infer multiplication for Decimal, Square root, or Open parenthesis.
 
-Whitespace before the cursor is ignored when checking context, but preserved in the expression. Keyboard typing, pasting, and selected-text editing do not use these rules. Backspace and Clear remain available. Ignored keys preserve the expression, result/error feedback, and caret, and return focus to the input; accepted edits clear stale feedback. Inserted characters count toward the existing 256-code-point limit.
+The context helper defensively ignores preceding whitespace, although the UI now rejects new whitespace. Literal paste/drop and selected-text editing do not apply context transformations. Backspace and Clear remain available. Ignored keys preserve the expression, result/error feedback, and caret, and return focus to the input; accepted edits clear stale feedback. Inserted characters count toward the existing 256-code-point limit.
 
-`getContextualKey` returns either insertion text (for example, `*4` or `0.`), an unchanged template/action name, or `null` for an ignored key. Calculator checks this helper before operator substitution, then reuses its existing template and caret handling. Go receives explicit multiplication and its grammar/API remain unchanged.
+`getContextualKey` returns either insertion text (for example, `*4` or `0.`), an unchanged template/action name, or `null` for an ignored key. The shared editing function checks this helper before operator substitution, then applies template and caret handling. Go receives explicit multiplication and its grammar/API remain unchanged.
 
 ### Trailing-operator keypad substitution
 
-When the cursor is at the end of the expression with no text selected, an operator button replaces the trailing operator according to this table. This prevents repeated operators and accidental pairs such as `+/`. Here, operands are numbers or subexpressions; operators are the arithmetic symbols.
+When the cursor is at the end of the expression with no text selected, a typed operator or operator button replaces the trailing operator according to this table. This prevents repeated operators and accidental pairs such as `+/`. Here, operands are numbers or subexpressions; operators are the arithmetic symbols.
 
 | Existing trailing operator | Incoming keys that replace it |
 | --- | --- |
@@ -136,9 +150,9 @@ Percentage is postfix. Repeating Percentage leaves `50%`, while Add after `50%` 
 
 The `^` row applies only to a bare trailing operator, such as `2^` after its parentheses are manually deleted. The `^()` template is excluded from substitution, including when the cursor is inside empty parentheses; the parentheses guard above applies there instead. Square root retains its insertion/wrapping behavior, so `2+` then Square root becomes `2+sqrt()`.
 
-Keyboard typing, pasting, selected-text replacement, and insertion within an expression do not apply this rule. The trailing symbol must be at the literal end of the input; trailing whitespace retains normal insertion behavior. This is an editing aid, not a second parser: Go still validates the full submitted expression and reports any remaining syntax or arithmetic errors.
+Literal paste/drop, selected-text replacement, and insertion within an expression do not apply this substitution rule. The trailing symbol must be at the literal end of the input; trailing whitespace retains normal insertion behavior. This is an editing aid, not a second parser: Go still validates the full submitted expression and reports any remaining syntax or arithmetic errors.
 
-`getOperatorReplacementStart` returns a UTF-16 insertion offset. `Calculator` uses that offset with its existing text/template insertion and caret restoration, and does not wrap a replaced operator as a selected exponent. The helper has no React or API dependency.
+`getOperatorReplacementStart` returns a UTF-16 insertion offset. The shared editor uses that offset with its text/template insertion and caret restoration, and does not wrap a replaced operator as a selected exponent. The helper has no React or API dependency.
 
 ## API client behavior
 
@@ -217,9 +231,9 @@ App
     └── Keypad
 ```
 
-`Calculator` owns shared state and the input ref. `ExpressionInput` receives `inputRef`, `expression`, `pending`, `hasError`, and `onChange`. `ResultPanel` receives `result`, `pending`, an error message/optional position, and `expressionLength`; its error prop is a simple data shape rather than an API-client dependency. `Keypad` receives `pending` and `onKeyPress`. The equals key remains a native submit button, preserving the same path as pressing Enter in the input.
+`Calculator` owns API feedback/pending state and the input ref, and calls `useExpressionEditor` for local expression editing. `ExpressionInput` receives `inputRef`, `expression`, `pending`, `hasError`, `onKeyPress`, `onInsertText`, and `onNativeChange`. `ResultPanel` receives `result`, `pending`, an error message/optional position, and `expressionLength`; its error prop is a simple data shape rather than an API-client dependency. `Keypad` receives `pending` and `onKeyPress`. The equals key remains a native submit button, preserving the same path as pressing Enter in the input.
 
-The children do not fetch results or maintain duplicate copies of expression/result state. A custom hook or generic button component is unnecessary for the current scope; either can be introduced later if shared behavior emerges. The existing App-level interaction tests exercise the complete composition, including refs and focus behavior.
+The children do not fetch results or maintain duplicate copies of expression/result state. The editor hook now separates browser/selection coordination from HTTP submission, and pure helpers share the rules between typing and clicking. A generic button component remains unnecessary. The existing App-level interaction tests exercise the complete composition, including refs and focus behavior.
 
 ## Choices to review before further changes
 
@@ -233,11 +247,11 @@ The children do not fetch results or maintain duplicate copies of expression/res
 | Next calculation | Original expression remains in the field | Replace input with the answer or offer an explicit “Use result” action |
 | Error feedback | Server message, position, and selected character | Inline annotated expression or field-specific guidance |
 | Appearance | Current colors, typography, and calculator copy | Different theme, copy, or self-hosted fonts |
-| Component organization | Page shell, Calculator coordinator, three presentation components, and a separate API module | Extract a state hook if the same behavior is reused elsewhere |
+| Component organization | Page shell, Calculator coordinator, editor hook, three presentation components, and API/pure editing modules | Add a generic button component if shared button behavior emerges |
 
 ## Verification and limits
 
-The current implementation passes 163 client/component/helper tests, TypeScript checks, and the production build. Coverage is 98.69% of statements, 95.48% of branches, and 100% of lines/functions. Context-editing tests cover allowed/blocked keys, preserved feedback, negative operands, decimal/nested grouping, templates, whitespace, explicit multiplication in submitted expressions, cursor/selection handling, and the length limit after insertion. The initial-zero and power-template changes add coverage for keyboard/keypad replacement, retained zero operands, reset behavior, exponent wrapping, and caret placement. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
+The current implementation passes 229 client/component/helper tests, TypeScript checks, and the production build. Coverage is 96.66% of statements, 94.92% of branches, 98.54% of lines, and 100% of functions. Keyboard tests cover all operator pairs, allowed/forbidden characters, root-button/`s` parity, paste/drop rejection and precedence, cursor placement, native shortcuts, browser input fallbacks, equals submission, and pending-state protection. Context-editing tests cover allowed/blocked keys, preserved feedback, negative operands, decimal/nested grouping, templates, whitespace, explicit multiplication in submitted expressions, cursor/selection handling, and the length limit after insertion. The initial-zero and power-template changes add coverage for keyboard/keypad replacement, retained zero operands, reset behavior, exponent wrapping, and caret placement. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
 
 The advanced-operation milestone passed all 37 tests and the TypeScript/production build. Browser checks confirmed power and percentage button submission, square-root template insertion and selection wrapping, domain-error feedback, the combined example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 
@@ -245,3 +259,5 @@ Tested responsive widths were desktop and 320px. This does not establish support
 
 
 The CSS Modules refactor preserved the existing component tests: all 37 tests and the TypeScript/production build pass. Browser checks confirmed desktop centering, the two-column equals key, scoped input/error states, and the 320px layout with mobile padding and visible attribution. The app still submits the same expressions and receives the same backend results.
+
+Keyboard validation was also verified in the rebuilt Docker app on 2026-10-27: real typing replaced trailing operators, ignored letters, added multiplication, and inserted power templates. An invalid paste preserved the selected expression; literal `2^3+4` returned `12`. Button-created `sqrt(9)` returned `3`, and typing `(2)4^2` produced `(2)*4^(2)` and returned `32`. All 222 tests pass in the Linux build stage. Virtual-keyboard/input fallback paths have automated coverage; this is not a full audit of every mobile keyboard or IME.

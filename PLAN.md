@@ -113,7 +113,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 163 tests pass, with 98.69% statement coverage, 95.48% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 229 tests pass, with 96.66% statement coverage, 94.92% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
@@ -218,7 +218,7 @@ Implemented source changes:
 - `Calculator.tsx`: extend insertion for balanced power/square-root templates, selection wrapping, and initial/cleared-zero behavior, restoring focus/cursor after React updates. Keep template insertion literal; the later context-editing milestone below adds explicit multiplication before digit keys after `)` or `%`. Evaluation remains on the backend.
 - `ExpressionInput.tsx`: update help to list `^`, `sqrt(...)`, and `%`. Add concise percentage guidance: `10% = 0.1`; `200*10% = 20`, while `200+10% = 200.1`. Keep the existing character-count limit and accessible help relationships.
 - CSS Modules: `Keypad.module.css` owns the four-column grid and two-column equals key; `ExpressionInput.module.css` owns wrapping help text. Other components have matching modules, while `styles.css` retains only shared base styles and theme variables.
-- Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component or custom hook is required.
+- Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component was required for that milestone; the later keyboard milestone introduces a shared editor hook.
 
 Acceptance checks before completion:
 
@@ -252,7 +252,7 @@ Current milestone: the full-stack calculator is implemented and verified locally
 
 ## Implemented keypad operator substitution
 
-This is a frontend editing aid: when the cursor is at the end with no text selected and the expression ends in an operator, a mapped operator key replaces it. This prevents repeated operators and accidental pairs such as `+/`. Go remains responsible for validating the full expression. Keyboard typing, pasting, and edits within an expression retain their existing behavior. Trailing whitespace retains normal insertion behavior.
+This is a frontend editing aid: when the cursor is at the end with no text selected and the expression ends in an operator, a mapped operator key replaces it. This prevents repeated operators and accidental pairs such as `+/`. Go remains responsible for validating the full expression. Physical typing now uses the same substitution rules. Literal paste/drop, selections, and edits within an expression retain their documented scope; new unsupported characters, including whitespace, are rejected.
 
 | Existing trailing operator | Incoming keys that replace it |
 | --- | --- |
@@ -275,7 +275,7 @@ Verification of operator substitution (2026-10-26): all 111 frontend tests pass;
 
 ## Implemented keypad parentheses and number-entry rules
 
-Apply these rules to keypad clicks with a collapsed selection, using the input cursor's context rather than only the end of the whole expression. Inspect the preceding non-whitespace character. Keyboard typing, pasting, and selected-text editing retain their existing behavior; Go still validates the complete expression.
+Apply these rules to keypad clicks and physical keys with a collapsed selection, using the input cursor's context rather than only the end of the whole expression. Inspect the preceding non-whitespace character. Literal paste/drop and selected-text editing retain their documented behavior; Go still validates the complete expression.
 
 1. After `(`, allow digits, Square root, and unary Minus. Ignore Add, Multiply, Divide, Percentage, and Power. Apply this inside ordinary grouping, `sqrt()`, and `^()` without removing or replacing their parentheses. An ignored key preserves text, result/error feedback, and caret, returning focus to the input. Allow another `(` for nested grouping and make Decimal insert `0.` to begin a fractional number; block Close parenthesis while the group is empty.
 2. Preserve this operand expectation after a minus directly following `(`: repeated Minus keeps one sign, and other arithmetic operators cannot replace it and create an invalid opening such as `(/`. Allow numbers, square root, nested grouping, and decimal entry; block Close parenthesis until an operand exists. This local guard takes precedence over the trailing-operator substitution table.
@@ -328,3 +328,18 @@ Base images use explicit version tags rather than `latest`. Their published mani
 Verification environment: Docker Desktop 4.97.0, Engine 29.9.2, Compose 5.6.1, Linux ARM64. ARM64 execution is verified; AMD64 image-manifest availability is verified, but AMD64 execution was not tested. The two runtime containers are left running at `http://127.0.0.1:8081/`. External deployment remains outside this milestone.
 
 References: Docker documents [multi-stage builds](https://docs.docker.com/build/building/multi-stage/), [Compose service networking](https://docs.docker.com/compose/how-tos/networking/), [health-based startup ordering](https://docs.docker.com/compose/how-tos/startup-order/), and [`docker compose up` options](https://docs.docker.com/reference/cli/docker/compose/up/).
+
+## Implemented physical-keyboard validation
+
+Physical keyboard entry now uses the same calculator editing actions as keypad clicks. `expressionEditing.ts` contains pure key/literal editing, `useExpressionEditor` owns current expression and caret restoration, and ExpressionInput maps browser events. API submission remains in Calculator.
+
+- Accept new typed expression characters only from `0-9`, `+`, `-`, `*`, `/`, `^`, `%`, `(`, `)`, and `.`. Treat Enter and `=` as calculation commands rather than expression characters. Block spaces, letters, scientific notation, and other unsupported symbols. Lowercase `s` now invokes the same Square root action as the on-screen button. It is a command, not a literal allowed character. Other letters are ignored; pasted `s`, `sqrt(...)`, and `√` are rejected in full.
+- Route allowed physical keys through the shared editing controller, reusing initial-zero replacement, trailing-operator substitution, negative-operand exceptions, parentheses guards, decimal/nested-group handling, automatic multiplication before digits after `)`/`%`, and power-template insertion/caret placement. Typing `^` inserts `^()` just like the button. Preserve the current cursor/selection scope of the existing rules.
+- Keep navigation, selection, deletion, and native copy/cut/paste/select-all available. No custom undo/redo handlers or history are implemented; Ctrl/Cmd shortcuts are left to the browser. Enter submits only once; editing remains disabled during a pending request. Ignored keys preserve text, caret, and feedback.
+- Check newly inserted text rather than applying a whitelist to the entire expression: existing `sqrt(...)` calls generated by the button must survive edits to their numeric arguments. Replace the input's special lone-zero key handler with the shared action path, so input sources do not drift.
+- Clipboard behavior: reject an entire paste/drop if it contains a forbidden character, leaving the expression unchanged. Insert accepted arithmetic text literally, without replaying keypad templates, to preserve pasted precedence (`2^3+4` must not become `2^(3+4)`). Go still validates complete pasted expressions. Cover alternative text-entry paths and browser input events so they cannot insert forbidden text.
+- Added keyboard/keypad parity tests, forbidden-character and square-root-button tests, clipboard tests, caret/selection and native-control checks, submission/disabled-state checks, and regressions for existing keypad behavior. README and the frontend guide document the final behavior. No backend grammar or API changes are needed.
+
+Verification of physical-keyboard validation (2026-10-27): all 222 frontend tests pass locally and in the Linux Docker build stage. Coverage is 96.62% statements, 94.82% branches, 98.52% lines, and 100% functions. TypeScript checks and the production build pass. The rebuilt Docker app is healthy at port 8081. Real browser checks confirmed operator substitution, ignored letters, atomic invalid-paste rejection, literal pasted precedence returning `12`, button-created square root returning `3`, and typed multiplication/power returning `32`. Enter and `=` calculate; no custom undo/redo handling remains.
+
+Square root shortcut (2026-10-27): lowercase `s` maps to the existing Square root action before shared editing validation, including initial-zero replacement, caret placement, selected-text wrapping, and nested roots. Cancelable virtual-keyboard input and the single-character native-input fallback support the same action; literal paste/drop character restrictions remain unchanged. Ctrl/Cmd+S remains browser-controlled. Local verification: all 229 tests and TypeScript/production build pass; coverage is 96.66% statements, 94.92% branches, 98.54% lines, and 100% functions.
