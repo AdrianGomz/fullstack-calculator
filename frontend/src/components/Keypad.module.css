@@ -20,7 +20,8 @@
 
 .key:hover:enabled { background: #e7ecdf; }
 .key:active:enabled { transform: translateY(1px); }
-.key.utility { background: #eaece3; border-color: #eaece3; color: #64715b; font-size: 15px; }
+.key.utility { background: var(--color-accent); border-color: var(--color-accent); color: #fffaf0; font-size: 15px; }
 .key.operator { background: #eef0e3; color: #61704c; border-color: #eef0e3; font-size: 23px; }
 .key.equals { grid-column: span 2; background: var(--color-accent); color: #fffaf0; border-color: var(--color-accent); font-size: 26px; }
+.key.utility:hover:enabled,
 .key.equals:hover:enabled { background: var(--color-accent-hover); }

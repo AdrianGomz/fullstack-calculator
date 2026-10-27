@@ -1,8 +1,8 @@
 import styles from './Keypad.module.css'
 
 const keys = [
-  '^', 'sqrt', 'Clear', 'Backspace',
-  '(', ')', '%', '/',
+  '(', ')', 'Clear', 'Backspace',
+  '^', 'sqrt', '%', '/',
   '7', '8', '9', '*',
   '4', '5', '6', '+',
   '1', '2', '3', '-',
