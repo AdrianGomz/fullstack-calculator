@@ -45,7 +45,13 @@ export default function Calculator() {
     const end = field.selectionEnd ?? expression.length
     let next: string
     let caret: number
-    if (key === 'Backspace') {
+    if (key === 'sqrt') {
+      const selected = expression.slice(start, end)
+      const template = `sqrt(${selected})`
+      next = expression.slice(0, start) + template + expression.slice(end)
+      // Empty calls place the caret inside; wrapped selections place it after.
+      caret = start + (selected ? template.length : 'sqrt('.length)
+    } else if (key === 'Backspace') {
       // Input selection uses UTF-16 offsets; remove a whole code point.
       const previous = [...expression.slice(0, start)].pop()?.length ?? 0
       const from = start === end ? start - previous : start

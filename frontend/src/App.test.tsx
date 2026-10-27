@@ -43,6 +43,9 @@ describe('calculator form', () => {
     expect(expressionInput()).toBeDisabled()
     expect(submitButton()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear' })).toBeDisabled()
+    for (const name of ['Power', 'Square root', 'Percentage']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
     expect(screen.getByRole('status')).toHaveTextContent('Working')
     await user.click(submitButton())
     expect(mockFetch).toHaveBeenCalledTimes(1)
@@ -110,4 +113,108 @@ describe('calculator form', () => {
     await user.click(screen.getByRole('button', { name: 'Backspace' }))
     expect(field).toHaveValue('')
   })
+  it('inserts an empty square-root call and places the cursor inside', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    expect(field).toHaveValue('sqrt()')
+    await waitFor(() => expect(field.selectionStart).toBe(5))
+    expect(field.selectionEnd).toBe(5)
+    expect(field).toHaveFocus()
+    await user.keyboard('9')
+    expect(field).toHaveValue('sqrt(9)')
+    expect(mockFetch).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(field).toHaveValue('')
+  })
+
+  it('wraps a selected expression and preserves surrounding text', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+4+5*3')
+    field.setSelectionRange(2, 5)
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    expect(field).toHaveValue('2+sqrt(4+5)*3')
+    await waitFor(() => expect(field.selectionStart).toBe(11))
+    expect(field.selectionEnd).toBe(11)
+    expect(field).toHaveFocus()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('inserts a square-root template at the cursor without inferring multiplication', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+3')
+    field.setSelectionRange(1, 1)
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    expect(field).toHaveValue('2sqrt()+3')
+    await waitFor(() => expect(field.selectionStart).toBe(6))
+  })
+
+  it.each([
+    ['Power', '^'], ['Percentage', '%'],
+  ])('inserts %s at the selection and supports Backspace', async (name, text) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+3')
+    field.setSelectionRange(1, 2)
+    await user.click(screen.getByRole('button', { name }))
+    expect(field).toHaveValue(`2${text}3`)
+    await waitFor(() => expect(field.selectionStart).toBe(2))
+    await user.click(screen.getByRole('button', { name: 'Backspace' }))
+    expect(field).toHaveValue('23')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Power', '2', '3', '2^3', 8],
+    ['Square root', '9', '', 'sqrt(9)', 3],
+    ['Percentage', '200*10', '', '200*10%', 20],
+  ] as const)('submits the exact expression from the %s control', async (name, initial, suffix, expression, result) => {
+    mockFetch.mockResolvedValue(reply({ result }))
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, initial)
+    if (name === 'Square root') field.setSelectionRange(0, initial.length)
+    await user.click(screen.getByRole('button', { name }))
+    await waitFor(() => expect(field).toHaveFocus())
+    if (suffix) await user.keyboard(suffix)
+    await user.click(submitButton())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(String(result)))
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression })
+  })
+
+  it.each([
+    ['sqrt(-1)', 'Square root requires a nonnegative argument.', 0],
+    ['0^0', 'Zero requires a positive exponent.', 1],
+  ] as const)('displays the backend domain error for %s and selects its position', async (expression, message, position) => {
+    mockFetch.mockResolvedValue(reply({ error: { code: 'INVALID_ARGUMENT', message, position } }, false))
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, expression)
+    await user.click(submitButton())
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    await waitFor(() => expect(field.selectionStart).toBe(position))
+    expect(field.selectionEnd).toBe(position + 1)
+  })
+
+  it('validates the length after square-root template insertion', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    fireEvent.change(field, { target: { value: '1'.repeat(251) } })
+    field.setSelectionRange(251, 251)
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    expect(field.value.length).toBe(257)
+    await user.click(submitButton())
+    expect(screen.getByRole('alert')).toHaveTextContent('256 characters')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
 })

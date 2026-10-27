@@ -1,9 +1,17 @@
-const keys = ['(', ')', 'Clear', 'Backspace', '7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', '+', '=']
+const keys = [
+  '^', 'sqrt', 'Clear', 'Backspace',
+  '(', ')', '%', '/',
+  '7', '8', '9', '*',
+  '4', '5', '6', '+',
+  '1', '2', '3', '-',
+  '0', '.', '=',
+]
 const labels: Record<string, string> = {
   '/': 'Divide', '*': 'Multiply', '-': 'Subtract', '+': 'Add',
   '=': 'Calculate', '(': 'Open parenthesis', ')': 'Close parenthesis',
+  '^': 'Power', sqrt: 'Square root', '%': 'Percentage',
 }
-const symbols: Record<string, string> = { '/': '÷', '*': '×', '-': '−', Backspace: '⌫' }
+const symbols: Record<string, string> = { '/': '÷', '*': '×', '-': '−', '^': 'xʸ', sqrt: '√', Backspace: '⌫' }
 
 interface KeypadProps {
   pending: boolean
@@ -19,7 +27,7 @@ export default function Keypad({ pending, onKeyPress }: KeypadProps) {
           key={key}
           type={key === '=' ? 'submit' : 'button'}
           aria-label={labels[key] ?? key}
-          className={`key ${key === '=' ? 'equals' : ['/', '*', '-', '+'].includes(key) ? 'operator' : ['(', ')', 'Clear', 'Backspace'].includes(key) ? 'utility' : ''}`}
+          className={`key ${key === '=' ? 'equals' : ['/', '*', '-', '+', '^', 'sqrt', '%'].includes(key) ? 'operator' : ['(', ')', 'Clear', 'Backspace'].includes(key) ? 'utility' : ''}`}
           onClick={key === '=' ? undefined : () => onKeyPress(key)}
         >
           {symbols[key] ?? key}
