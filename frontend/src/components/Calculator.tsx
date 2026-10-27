@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculate, CalculationError } from '../api/calculator'
 import { getOperatorReplacementStart } from '../utils/operatorSubstitution'
+import { getContextualKey } from '../utils/keypadContext'
 import ExpressionInput from './ExpressionInput'
 import ResultPanel from './ResultPanel'
 import Keypad from './Keypad'
@@ -51,6 +52,13 @@ export default function Calculator() {
       start = replacesZero ? 0 : 1
       end = 1
     }
+    const contextualKey = getContextualKey(expression, key, start, end)
+    if (contextualKey === null) {
+      // Ignored keys keep feedback and selection; focus returns from the button.
+      field.focus()
+      field.setSelectionRange(start, end)
+      return
+    }
     const replacementStart = getOperatorReplacementStart(expression, key, start, end)
     const replacingOperator = replacementStart !== start
     start = replacementStart
@@ -71,8 +79,8 @@ export default function Calculator() {
       next = expression.slice(0, from) + expression.slice(end)
       caret = from
     } else {
-      next = expression.slice(0, start) + key + expression.slice(end)
-      caret = start + key.length
+      next = expression.slice(0, start) + contextualKey + expression.slice(end)
+      caret = start + contextualKey.length
     }
     update(next)
     requestAnimationFrame(() => {

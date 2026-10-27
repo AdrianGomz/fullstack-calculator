@@ -116,10 +116,10 @@ describe('calculator form', () => {
   })
 
   it.each([
-    ['Add', '2^(+)', 4], ['Subtract', '2^(-)', 4],
-    ['Multiply', '2^(*)', 4], ['Divide', '2^(/)', 4],
-    ['Percentage', '2^(%)', 4], ['Power', '2^(^())', 5],
-  ] as const)('keeps existing %s insertion inside an empty power template', async (name, expected, caret) => {
+    ['Add', '2^()', 3], ['Subtract', '2^(-)', 4],
+    ['Multiply', '2^()', 3], ['Divide', '2^()', 3],
+    ['Percentage', '2^()', 3], ['Power', '2^()', 3],
+  ] as const)('guards %s inside an empty power template without replacing it', async (name, expected, caret) => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
@@ -128,7 +128,10 @@ describe('calculator form', () => {
     await waitFor(() => expect(field.selectionStart).toBe(3))
     await user.click(screen.getByRole('button', { name }))
     expect(field).toHaveValue(expected)
-    await waitFor(() => expect(field.selectionStart).toBe(caret))
+    await waitFor(() => {
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(caret)
+    })
   })
 
   it('applies power substitution only after manually deleting its parentheses', async () => {
@@ -173,6 +176,140 @@ describe('calculator form', () => {
     await user.click(screen.getByRole('button', { name: 'Multiply' }))
     expect(expressionInput()).toHaveValue('2/2*')
     expect(screen.getByRole('status')).toHaveTextContent('—')
+  })
+
+  it.each([
+    ['(', 1], ['( - ', 4], ['sqrt()', 5], ['sqrt(-)', 6], ['2^()', 3], ['2^(-)', 4],
+  ] as const)('ignores invalid keys in %s at cursor %i', async (expression, cursor) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    fireEvent.change(field, { target: { value: expression } })
+    field.setSelectionRange(cursor, cursor)
+    for (const name of ['Add', 'Multiply', 'Divide', 'Percentage', 'Power', 'Close parenthesis']) {
+      await user.click(screen.getByRole('button', { name }))
+      expect(field).toHaveValue(expression)
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(cursor)
+      expect(field.selectionEnd).toBe(cursor)
+    }
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['(', 1, '7', '(7', 2], ['(', 1, 'Square root', '(sqrt()', 6],
+    ['(', 1, 'Subtract', '(-', 2], ['(', 1, 'Open parenthesis', '((', 2],
+    ['(', 1, '.', '(0.', 3], ['(-', 2, '.', '(-0.', 4],
+    ['(-', 2, 'Square root', '(-sqrt()', 7], ['(-)', 2, '7', '(-7)', 3],
+    ['(-)', 2, 'Subtract', '(-)', 2], ['sqrt()', 5, '9', 'sqrt(9)', 6],
+    ['2^()', 3, '9', '2^(9)', 4], ['( \t', 3, '.', '( \t0.', 5],
+  ] as const)('allows %s at %i followed by %s as %s', async (expression, cursor, name, expected, caret) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    fireEvent.change(field, { target: { value: expression } })
+    field.setSelectionRange(cursor, cursor)
+    await user.click(screen.getByRole('button', { name }))
+    expect(field).toHaveValue(expected)
+    await waitFor(() => {
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(caret)
+    })
+    expect(field.selectionEnd).toBe(caret)
+  })
+
+  it.each([
+    ['(2+3)', 5, '(2+3)*4', 7], ['50%', 3, '50%*4', 5],
+    ['sqrt(9)', 7, 'sqrt(9)*4', 9], ['2^(3)', 5, '2^(3)*4', 7],
+    ['(2) \t', 5, '(2) \t*4', 7], ['(2)+5', 3, '(2)*4+5', 5],
+  ] as const)('inserts multiplication at %s / %i and extends the new number', async (expression, cursor, expected, caret) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    fireEvent.change(field, { target: { value: expression } })
+    field.setSelectionRange(cursor, cursor)
+    await user.click(screen.getByRole('button', { name: '4' }))
+    expect(field).toHaveValue(expected)
+    await waitFor(() => {
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(caret)
+    })
+    await user.click(screen.getByRole('button', { name: '2' }))
+    expect(field).toHaveValue(expected.slice(0, caret) + '2' + expected.slice(caret))
+    await waitFor(() => expect(field.selectionStart).toBe(caret + 1))
+  })
+
+  it('preserves feedback when a key is ignored and allows Backspace', async () => {
+    mockFetch.mockResolvedValueOnce(reply({ result: 2 }))
+      .mockResolvedValueOnce(reply({ error: { message: 'Expected a number.', position: 1 } }, false))
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '(2)')
+    await user.click(submitButton())
+    await waitFor(() => expect(field).toHaveFocus())
+    field.setSelectionRange(1, 1)
+    await user.click(screen.getByRole('button', { name: 'Multiply' }))
+    expect(field).toHaveValue('(2)')
+    expect(screen.getByRole('status')).toHaveTextContent('2')
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    await user.type(field, '(')
+    await user.click(submitButton())
+    await waitFor(() => expect(field).toHaveFocus())
+    expect(screen.getByRole('alert')).toHaveTextContent('Expected a number.')
+    await user.click(screen.getByRole('button', { name: 'Close parenthesis' }))
+    expect(field).toHaveValue('(')
+    expect(screen.getByRole('alert')).toHaveTextContent('Expected a number.')
+    await user.click(screen.getByRole('button', { name: 'Backspace' }))
+    expect(field).toHaveValue('')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps typing, paste, and selected-text replacement outside the context rules', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '(2)4')
+    expect(field).toHaveValue('(2)4')
+    await user.clear(field)
+    await user.paste('50%2')
+    expect(field).toHaveValue('50%2')
+    field.setSelectionRange(3, 4)
+    await user.click(screen.getByRole('button', { name: '9' }))
+    expect(field).toHaveValue('50%9')
+    await waitFor(() => expect(field).toHaveFocus())
+    fireEvent.change(field, { target: { value: '(2)' } })
+    field.setSelectionRange(1, 2)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(field).toHaveValue('(+)')
+  })
+
+  it.each([
+    ['(2+3)', '4', '(2+3)*4', 20], ['50%', '2', '50%*2', 1],
+    ['sqrt(9)', '2', 'sqrt(9)*2', 6],
+  ] as const)('submits explicit multiplication after %s', async (initial, digit, expression, result) => {
+    mockFetch.mockResolvedValue(reply({ result }))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(expressionInput(), initial)
+    await user.click(screen.getByRole('button', { name: digit }))
+    await user.click(submitButton())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(String(result)))
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression })
+  })
+
+  it('counts the inserted multiplication toward the expression limit', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    const expression = '1'.repeat(254) + '%'
+    fireEvent.change(field, { target: { value: expression } })
+    field.setSelectionRange(expression.length, expression.length)
+    await user.click(screen.getByRole('button', { name: '2' }))
+    expect(field.value).toHaveLength(257)
+    await user.click(submitButton())
+    expect(screen.getByRole('alert')).toHaveTextContent('256 characters')
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('validates empty and overlong expressions without making requests', async () => {
