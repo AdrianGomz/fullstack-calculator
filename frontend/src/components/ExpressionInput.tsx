@@ -77,7 +77,7 @@ export default function ExpressionInput({ inputRef, expression, pending, hasErro
         disabled={pending}
         placeholder="e.g. (2+3)*4"
         aria-invalid={hasError}
-        aria-describedby={hasError ? 'expression-help percentage-help calculation-error' : 'expression-help percentage-help'}
+        aria-describedby={hasError ? 'expression-help calculation-error' : 'expression-help'}
       />
       <div className={styles.meta}>
         <span id="expression-help">Type numbers, + − * / ^ %, . and parentheses. Use s for square root.</span>

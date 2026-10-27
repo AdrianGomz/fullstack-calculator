@@ -97,6 +97,8 @@ Editing the expression clears the previous result and error, so an answer never 
 
 The keypad is an input aid. It does not call the API except when `=` submits the form.
 
+`Keypad.tsx` defines its buttons in one typed list, in display order. Each definition contains the editing value, accessible label, visible symbol, and optional style variant; buttons without a variant use the base key style. Rendering reads these definitions directly.
+
 - The expression starts at `0`; Clear restores `0` and removes the result/error. On this lone zero, number and parenthesis keys replace it, operators retain it (for example, `0+`), and the decimal key produces `0.`. Square root replaces it with `sqrt()`. Physical-keyboard entry uses the same starting-zero rule. Square-root calls can be created through the button or lowercase `s`. An accepted paste replaces a lone zero and otherwise replaces the current selection or inserts at the cursor. Zeros within longer expressions are preserved.
 - Otherwise, numbers, operators, decimal points, and parentheses insert at the input cursor or replace selected text, subject to the keypad context and trailing-operator rules below.
 - The visible `×`, `÷`, and `−` buttons insert the API grammar's `*`, `/`, and `-` characters.
@@ -188,7 +190,7 @@ The API reports zero-based code-point offsets. The UI shows a one-based position
 
 For `10/(3-3)`, the API identifies `/` at offset `2`. The UI focuses the input and selects that character. Native browser selections use UTF-16 offsets, so the UI converts the API offset before selecting. This matters when an invalid Unicode character occupies more than one UTF-16 unit.
 
-The form has an associated input label, linked syntax/percentage/error help text, `aria-invalid`, and `aria-busy`. Results use a polite live region; errors use an alert. Keypad buttons have names such as “Multiply” and “Open parenthesis”. Keyboard focus styles are visible, and focus returns to the input after a result or error. These are implemented accessibility provisions, not a claim of a complete assistive-technology audit.
+The form has an associated input label, linked syntax and error help text, `aria-invalid`, and `aria-busy`. Results use a polite live region; errors use an alert. Keypad buttons have names such as “Multiply” and “Open parenthesis”. Keyboard focus styles are visible, and focus returns to the input after a result or error. These are implemented accessibility provisions, not a claim of a complete assistive-technology audit.
 
 ## Visual design and responsiveness
 
