@@ -6,7 +6,7 @@ import Keypad from './Keypad'
 import styles from './Calculator.module.css'
 
 export default function Calculator() {
-  const [expression, setExpression] = useState('')
+  const [expression, setExpression] = useState('0')
   const [result, setResult] = useState<number | null>(null)
   const [error, setError] = useState<CalculationError | null>(null)
   const [pending, setPending] = useState(false)
@@ -38,20 +38,27 @@ export default function Calculator() {
     const field = input.current
     if (!field || inFlight.current) return
     if (key === 'Clear') {
-      update('')
+      update('0')
       field.focus()
+      field.setSelectionRange(1, 1)
       return
     }
-    const start = field.selectionStart ?? expression.length
-    const end = field.selectionEnd ?? expression.length
+    const replacesZero = expression === '0' && (/^[0-9()]$/.test(key) || key === 'sqrt')
+    let start = field.selectionStart ?? expression.length
+    let end = field.selectionEnd ?? expression.length
+    if (expression === '0' && key !== 'Backspace') {
+      start = replacesZero ? 0 : 1
+      end = 1
+    }
     let next: string
     let caret: number
-    if (key === 'sqrt') {
-      const selected = expression.slice(start, end)
-      const template = `sqrt(${selected})`
+    if (key === 'sqrt' || key === '^') {
+      const selected = replacesZero ? '' : expression.slice(start, end)
+      const prefix = key === 'sqrt' ? 'sqrt(' : '^('
+      const template = `${prefix}${selected})`
       next = expression.slice(0, start) + template + expression.slice(end)
       // Empty calls place the caret inside; wrapped selections place it after.
-      caret = start + (selected ? template.length : 'sqrt('.length)
+      caret = start + (selected ? template.length : prefix.length)
     } else if (key === 'Backspace') {
       // Input selection uses UTF-16 offsets; remove a whole code point.
       const previous = [...expression.slice(0, start)].pop()?.length ?? 0

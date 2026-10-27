@@ -25,6 +25,15 @@ export default function ExpressionInput({ inputRef, expression, pending, hasErro
         spellCheck={false}
         value={expression}
         onChange={event => onChange(event.target.value)}
+        onKeyDown={event => {
+          if (expression !== '0' || event.ctrlKey || event.metaKey || event.altKey) return
+          const field = event.currentTarget
+          if (/^[0-9()s]$/.test(event.key)) {
+            field.setSelectionRange(0, 1)
+          } else if (/^[+\-*/^%.]$/.test(event.key) && field.selectionStart === field.selectionEnd) {
+            field.setSelectionRange(1, 1)
+          }
+        }}
         disabled={pending}
         placeholder="e.g. (2 + 3) * 4"
         aria-invalid={hasError}

@@ -12,9 +12,88 @@ beforeEach(() => { mockFetch.mockReset(); vi.stubGlobal('fetch', mockFetch) })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('calculator form', () => {
+  it('starts at zero, submits it, and resets the expression and result on Clear', async () => {
+    mockFetch.mockResolvedValue(reply({ result: 0 }))
+    const user = userEvent.setup()
+    render(<App />)
+    expect(expressionInput()).toHaveValue('0')
+    await user.click(submitButton())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('0'))
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression: '0' })
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(expressionInput()).toHaveValue('0')
+    expect(screen.getByRole('status')).toHaveTextContent('—')
+    expect(expressionInput()).toHaveFocus()
+  })
+
+  it.each([
+    ['7', '7'], ['0', '0'], ['Open parenthesis', '('], ['Close parenthesis', ')'],
+    ['Add', '0+'], ['Subtract', '0-'], ['Multiply', '0*'], ['Divide', '0/'],
+    ['Power', '0^()'], ['Percentage', '0%'], ['.', '0.'], ['Square root', 'sqrt()'],
+  ])('handles the initial and cleared zero with the %s keypad key', async (name, expected) => {
+    const user = userEvent.setup()
+    render(<App />)
+    for (const reset of [false, true]) {
+      if (reset) await user.click(screen.getByRole('button', { name: 'Clear' }))
+      await user.click(screen.getByRole('button', { name }))
+      expect(expressionInput()).toHaveValue(expected)
+    }
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['123', '123'], ['(2+3)', '(2+3)'], [')', ')'], ['0', '0'],
+    ['+2', '0+2'], ['-2', '0-2'], ['*2', '0*2'], ['/2', '0/2'],
+    ['^2', '0^2'], ['%', '0%'], ['.5', '0.5'], ['sqrt(9)', 'sqrt(9)'],
+  ])('handles keyboard entry %s after starting or clearing', async (keys, expected) => {
+    const user = userEvent.setup()
+    render(<App />)
+    for (const reset of [false, true]) {
+      if (reset) await user.click(screen.getByRole('button', { name: 'Clear' }))
+      await user.type(expressionInput(), keys)
+      expect(expressionInput()).toHaveValue(expected)
+    }
+  })
+
+  it('preserves zeros within an existing expression', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(expressionInput(), '10+0')
+    await user.click(screen.getByRole('button', { name: '2' }))
+    expect(expressionInput()).toHaveValue('10+02')
+  })
+
+  it('inserts a balanced exponent at the cursor and keeps surrounding text', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+4')
+    field.setSelectionRange(1, 1)
+    await user.click(screen.getByRole('button', { name: 'Power' }))
+    expect(field).toHaveValue('2^()+4')
+    await waitFor(() => expect(field.selectionStart).toBe(3))
+    expect(field.selectionEnd).toBe(3)
+    expect(field).toHaveFocus()
+    await user.keyboard('3')
+    expect(field).toHaveValue('2^(3)+4')
+  })
+
+  it('wraps a selected exponent and places the cursor after its parentheses', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+3+4')
+    field.setSelectionRange(1, 3)
+    await user.click(screen.getByRole('button', { name: 'Power' }))
+    expect(field).toHaveValue('2^(+3)+4')
+    await waitFor(() => expect(field.selectionStart).toBe(6))
+    expect(field.selectionEnd).toBe(6)
+  })
+
   it('validates empty and overlong expressions without making requests', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.clear(expressionInput())
     await user.click(submitButton())
     expect(screen.getByRole('alert')).toHaveTextContent('Enter an expression')
     expect(expressionInput()).toHaveFocus()
@@ -27,6 +106,7 @@ describe('calculator form', () => {
     mockFetch.mockResolvedValue(reply({ result: 0 }))
     const user = userEvent.setup()
     render(<App />)
+    await user.clear(expressionInput())
     await user.type(expressionInput(), ' 2-2 {Enter}')
     expect(await screen.findByRole('status')).toHaveTextContent('0')
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression: ' 2-2 ' })
@@ -74,7 +154,7 @@ describe('calculator form', () => {
     await user.click(submitButton())
     expect(await screen.findByRole('alert')).toHaveTextContent('end of expression')
     await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(expressionInput()).toHaveValue('')
+    expect(expressionInput()).toHaveValue('0')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(expressionInput()).toHaveFocus()
   })
@@ -126,7 +206,7 @@ describe('calculator form', () => {
     expect(field).toHaveValue('sqrt(9)')
     expect(mockFetch).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(field).toHaveValue('')
+    expect(field).toHaveValue('0')
   })
 
   it('wraps a selected expression and preserves surrounding text', async () => {
@@ -154,16 +234,14 @@ describe('calculator form', () => {
     await waitFor(() => expect(field.selectionStart).toBe(6))
   })
 
-  it.each([
-    ['Power', '^'], ['Percentage', '%'],
-  ])('inserts %s at the selection and supports Backspace', async (name, text) => {
+  it('inserts percentage at the selection and supports Backspace', async () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
     await user.type(field, '2+3')
     field.setSelectionRange(1, 2)
-    await user.click(screen.getByRole('button', { name }))
-    expect(field).toHaveValue(`2${text}3`)
+    await user.click(screen.getByRole('button', { name: 'Percentage' }))
+    expect(field).toHaveValue('2%3')
     await waitFor(() => expect(field.selectionStart).toBe(2))
     await user.click(screen.getByRole('button', { name: 'Backspace' }))
     expect(field).toHaveValue('23')
@@ -171,7 +249,7 @@ describe('calculator form', () => {
   })
 
   it.each([
-    ['Power', '2', '3', '2^3', 8],
+    ['Power', '2', '3', '2^(3)', 8],
     ['Square root', '9', '', 'sqrt(9)', 3],
     ['Percentage', '200*10', '', '200*10%', 20],
   ] as const)('submits the exact expression from the %s control', async (name, initial, suffix, expression, result) => {
