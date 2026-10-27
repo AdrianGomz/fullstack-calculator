@@ -420,3 +420,14 @@ Outcome: mapped lowercase `s` to the shared Square root action, including zero r
 ```text
 for square root map the key "s"
 ```
+
+## Prompt 34 — support implicit multiplication
+
+Date: 2026-10-27
+Tool: Codex desktop
+Context: added retrospectively at the user's request to summarize the completed implicit-multiplication implementation. Ongoing prompt logging remains paused.
+Outcome: the backend supports the documented implicit-multiplication boundaries with the same precedence and left associativity as explicit multiplication and division.
+
+```text
+Add support for implicit multiplication in calculator expressions, such as `4(3)`, `(2)(4)`, and `2sqrt(9)`. Treat it as explicit multiplication and division, evaluated left to right.
+```

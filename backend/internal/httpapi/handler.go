@@ -52,10 +52,26 @@ func calculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expression, ok := readCalculationRequest(w, r)
+	if !ok {
+		return
+	}
+	result, err := calculator.Evaluate(expression)
+	if err != nil {
+		writeCalculationError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Result float64 `json:"result"`
+	}{Result: result})
+}
+
+// readCalculationRequest writes the error response itself when validation fails.
+func readCalculationRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeError(w, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE", "Content-Type must be application/json.")
-		return
+		return "", false
 	}
 	reader := http.MaxBytesReader(w, r.Body, 4096)
 	defer reader.Close()
@@ -67,33 +83,30 @@ func calculate(w http.ResponseWriter, r *http.Request) {
 		} else {
 			writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Could not read request body.")
 		}
-		return
+		return "", false
 	}
 	expression, err := decodeExpression(body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Expected one JSON object with one string field named expression.")
+		return "", false
+	}
+	return expression, true
+}
+
+func writeCalculationError(w http.ResponseWriter, err error) {
+	var calculationError *calculator.Error
+	if !errors.As(err, &calculationError) {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not calculate expression.")
 		return
 	}
-	result, err := calculator.Evaluate(expression)
-	if err != nil {
-		var calculationError *calculator.Error
-		if !errors.As(err, &calculationError) {
-			writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not calculate expression.")
-			return
-		}
-		status := http.StatusBadRequest
-		switch calculationError.Code {
-		case calculator.DivisionByZero, calculator.NumberOutOfRange, calculator.NonFiniteResult, calculator.InvalidArgument:
-			status = http.StatusUnprocessableEntity
-		}
-		writeJSON(w, status, errorResponse{Error: apiError{
-			Code: calculationError.Code, Message: calculationError.Message, Position: &calculationError.Position,
-		}})
-		return
+	status := http.StatusBadRequest
+	switch calculationError.Code {
+	case calculator.DivisionByZero, calculator.NumberOutOfRange, calculator.NonFiniteResult, calculator.InvalidArgument:
+		status = http.StatusUnprocessableEntity
 	}
-	writeJSON(w, http.StatusOK, struct {
-		Result float64 `json:"result"`
-	}{Result: result})
+	writeJSON(w, status, errorResponse{Error: apiError{
+		Code: calculationError.Code, Message: calculationError.Message, Position: &calculationError.Position,
+	}})
 }
 
 // Decode tokens explicitly to reject duplicate keys and case variants as well
