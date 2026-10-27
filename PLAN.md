@@ -9,7 +9,7 @@ Build a full-stack calculator with a React frontend that calls a Go REST microse
 
 The assignment requires addition, subtraction, multiplication, and division; frontend and backend validation; a responsive UI; JSON responses; unit tests for both layers; coverage reports; setup/API/design documentation; and submission of a Git repository link and prompts used.
 
-The assignment treats exponentiation, square root, percentage, and Docker as optional. The three arithmetic operations are now implemented in the backend after completion of the required functionality. Dedicated frontend controls remain deferred; Docker is not implemented.
+The assignment treats exponentiation, square root, percentage, and Docker as optional. The three arithmetic operations are now implemented in the backend after completion of the required functionality. Dedicated frontend controls and help are implemented; Docker is not implemented.
 
 User-approved extension: evaluate complete expressions, including nested parentheses. `2+3+5/4` yields `6.25`; `(2+3+5)/4` yields `2.5`.
 
@@ -108,13 +108,13 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 26 tests pass, with 97.95% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 37 tests pass, with 98.05% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
 ### Backend extension — implemented
 
-The agreed extension is implemented in the backend, including parser/evaluator tests and HTTP error mapping. API.md describes the supported contract. Frontend controls remain deferred.
+The agreed extension is implemented in the backend, including parser/evaluator tests and HTTP error mapping. API.md describes the supported contract. Frontend controls are also implemented, as described below.
 
 #### Syntax and semantics
 
@@ -194,6 +194,37 @@ The request remains `{"expression":"sqrt(16)+2^3+50%"}` and the successful respo
 Retain all existing acceptance tests, including subtraction/unary signs, syntax-before-domain errors, input boundaries, and division by zero. Add HTTP checks for domain error status/code/positions and fuzz seeds covering each new syntax form.
 
 Verification complete: all backend tests pass with the race detector, `go vet` and the standalone build pass, the fuzz run passed 525,169 executions, and live HTTP checks passed twelve calculations and seven positioned errors. No frontend source changes are included in this milestone.
+
+### Frontend extension — implemented
+
+The backend already accepts the new syntax through the existing expression request. The approved extension adds discoverable controls and editing assistance; it does not duplicate arithmetic in React.
+
+| Control | Display/accessibility | Implemented editing behavior |
+| --- | --- | --- |
+| Exponentiation | `xʸ`, accessible name “Power” | Insert `^` using the existing cursor/selection replacement behavior. |
+| Square root | `√`, accessible name “Square root” | With no selection, insert `sqrt()` and place the cursor inside. With selected text, wrap it in `sqrt(...)` and place the cursor after the closing parenthesis. |
+| Percentage | `%`, accessible name “Percentage” | Insert `%` using the existing cursor/selection replacement behavior. |
+
+Use a single four-column keypad with six rows: power/root/Clear/Backspace; parentheses/percentage/division; 7/8/9/multiplication; 4/5/6/addition; 1/2/3/subtraction; and 0/decimal/equals. Equals spans the final two columns. Controls remain disabled during pending requests, and the card stays centered with mobile touch-target sizes preserved.
+
+Implemented source changes:
+
+- `Keypad.tsx`: render the six-row keypad with explicit accessible names and the appropriate editing actions; keep all arithmetic on the backend.
+- `Calculator.tsx`: extend insertion for a balanced square-root template and selection wrapping, restoring focus/cursor after React updates. Keep insertion literal: no automatic multiplication, calculation, or rewriting of the remaining expression.
+- `ExpressionInput.tsx`: update help to list `^`, `sqrt(...)`, and `%`. Add concise percentage guidance: `10% = 0.1`; `200*10% = 20`, while `200+10% = 200.1`. Keep the existing character-count limit and accessible help relationships.
+- `styles.css`: style the four-column keypad and double-column equals key and allow help text to wrap at narrow widths.
+- Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component or custom hook is required.
+
+Acceptance checks before completion:
+
+- New controls insert the exact API syntax at the cursor or replace the current selection, as specified above.
+- Empty and selected-text square-root insertion, caret placement, surrounding-text preservation, Clear/Backspace, pending-state disabling, and the 256-character validation path work together.
+- Requests preserve the resulting expression exactly. The UI shows successful advanced results and server domain errors, including highlighting `sqrt`/`^` positions through the existing error-selection behavior.
+- Existing interaction/client tests remain passing; add component tests for the new editing actions and representative result/error paths.
+- Verify live requests for `2^3^2`, `sqrt(9)`, `200*10%`, and a domain error; check desktop and 320px mobile layout.
+- Update the frontend guide, README, and desktop/mobile screenshots once implemented. Do not add a header screenshot or a screenshots README.
+
+Verification complete on 2026-10-26: 37 frontend tests pass with 98.05% statement and 93.51% branch coverage; TypeScript/production build pass. Browser checks against Go verified all three controls, square-root selection wrapping, a positioned domain error, and the combined expression result. Desktop and 320px mobile screenshots were refreshed, with no horizontal overflow and 52px keypad buttons.
 
 ### Other optional work
 

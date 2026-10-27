@@ -84,13 +84,15 @@ Editing the expression clears the previous result and error, so an answer never 
 
 The keypad is an input aid. It does not call the API except when `=` submits the form.
 
-- Numbers, operators, decimal points, and parentheses insert at the input cursor or replace selected text.
+- Numbers, operators (including `^` and `%`), decimal points, and parentheses insert at the input cursor or replace selected text.
 - The visible `×`, `÷`, and `−` buttons insert the API grammar's `*`, `/`, and `-` characters.
+- The keypad includes three advanced controls: Power (`xʸ`) inserts `^`, Square root (`√`) inserts a balanced `sqrt()` template, and Percentage inserts `%`. Accessible names are “Power”, “Square root”, and “Percentage”.
+- With no selection, Square root places the cursor inside the new parentheses. With a selection, it wraps the selected text in `sqrt(...)` and places the cursor after the closing parenthesis. Surrounding text is preserved; no multiplication is inferred.
 - Backspace removes selected text or the previous whole Unicode code point.
 - Clear empties the expression, result, and error, then focuses the input.
 - After keypad editing, `requestAnimationFrame` restores the cursor after React has updated the controlled input.
 
-Physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication, bracket completion, or automatic reuse of the previous answer. The submitted expression stays in the field after success.
+Physical-keyboard entry uses the browser's normal input behavior. There are no global keyboard shortcuts, automatic multiplication, automatic bracket completion during typing, or automatic reuse of the previous answer. The balanced square-root template is an explicit keypad action. The submitted expression stays in the field after success.
 
 ## API client behavior
 
@@ -122,7 +124,7 @@ The API reports zero-based code-point offsets. The UI shows a one-based position
 
 For `10/(3-3)`, the API identifies `/` at offset `2`. The UI focuses the input and selects that character. Native browser selections use UTF-16 offsets, so the UI converts the API offset before selecting. This matters when an invalid Unicode character occupies more than one UTF-16 unit.
 
-The form has an associated input label, linked help/error text, `aria-invalid`, and `aria-busy`. Results use a polite live region; errors use an alert. Keypad buttons have names such as “Multiply” and “Open parenthesis”. Keyboard focus styles are visible, and focus returns to the input after a result or error. These are implemented accessibility provisions, not a claim of a complete assistive-technology audit.
+The form has an associated input label, linked syntax/percentage/error help text, `aria-invalid`, and `aria-busy`. Results use a polite live region; errors use an alert. Keypad buttons have names such as “Multiply” and “Open parenthesis”. Keyboard focus styles are visible, and focus returns to the input after a result or error. These are implemented accessibility provisions, not a claim of a complete assistive-technology audit.
 
 ## Visual design and responsiveness
 
@@ -132,9 +134,20 @@ The header combines a boxed lowercase `c` with `alculator.` using a 2px gap. It 
 
 Centering is applied to `.app-shell > main`, so it does not depend on a class on the `<main>` element. The main area has 32px vertical padding on desktop and 24px on mobile; it expands to fill available space within the full-height page shell.
 
+The keypad uses one four-column grid inside its disabled-capable fieldset. Its rows are:
+
+1. `xʸ`, `√`, `Clear`, `⌫`
+2. `(`, `)`, `%`, `÷`
+3. `7`, `8`, `9`, `×`
+4. `4`, `5`, `6`, `+`
+5. `1`, `2`, `3`, `−`
+6. `0`, `.`, `=` (equals spans the final two columns)
+
+The equals key fills two column tracks plus the gap between them. Input help can wrap while the character counter stays on one line. Percentage guidance explains `10% = 0.1`, `200 × 10% = 20`, and `200 + 10% = 200.1`.
+
 Styling uses plain CSS. DM Sans and Manrope load from Google Fonts with local sans-serif fallbacks. Reduced-motion preferences disable CSS transitions. Desktop and 320px layouts were checked visually, with no horizontal overflow at 320px.
 
-Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/mobile.png). The latest captures show `(2+3)*4` returning `20` from the running Go API.
+Review screenshots: [desktop](screenshots/desktop.png) and [mobile](screenshots/mobile.png). The latest captures (2026-10-26) show `sqrt(16)+2^3+50%` returning `12.5` from the running Go API, with the six-row keypad, wide equals button, and percentage guidance visible. Desktop was captured at 1280 × 1100 and mobile at a width of 320px; shorter viewports can scroll vertically.
 
 ## Development and deployment
 
@@ -176,8 +189,8 @@ The children do not fetch results or maintain duplicate copies of expression/res
 
 ## Verification and limits
 
-The last implementation run passed 26 client/component tests, TypeScript checks, and the production build. Reported statement coverage was 97.95%, with 93.26% branch coverage. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
+The last implementation run passed 37 client/component tests, TypeScript checks, and the production build. Reported statement coverage was 98.05%, with 93.51% branch coverage. Tests control fetch responses; separate manual browser checks used the real Go API for precedence, parentheses, division errors, Clear, and outage/recovery behavior.
 
-The documentation refresh reran all 26 tests and the TypeScript/production build successfully. Browser checks confirmed the example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
+The advanced-operation milestone passed all 37 tests and the TypeScript/production build. Browser checks confirmed power and percentage button submission, square-root template insertion and selection wrapping, domain-error feedback, the combined example result, desktop centering, no horizontal overflow at 320px, and visible mobile attribution. The screenshots reflect the current component-based implementation and header/footer copy.
 
-Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. The backend now supports `^`, `sqrt(...)`, and postfix `%` through the same expression request. These can be typed into the existing field, but dedicated keypad buttons/help updates have not been implemented in this backend milestone. Persistent history and production deployment remain outside the current implementation.
+Tested responsive widths were desktop and 320px. This does not establish support across every browser/device or a full screen-reader audit. The backend supports `^`, `sqrt(...)`, and postfix `%` through the same expression request, and the frontend now offers both typed entry and dedicated controls/help. Persistent history and production deployment remain outside the current implementation.

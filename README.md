@@ -55,7 +55,7 @@ Enter an expression and press Enter or `=`. The keypad inserts at the cursor and
 
 The page contains a compact “Calculator” wordmark, a centered calculator card, and the footer credit “By: Isaac Gomez Ocon.” on both desktop and mobile. `App` renders the page shell; `Calculator` coordinates `ExpressionInput`, `ResultPanel`, and `Keypad`.
 
-The backend also accepts typed expressions such as `sqrt(16)+2^3+50%`, returning `12.5`. The keypad/help text still cover the basic operations; frontend controls for these additions are deferred.
+The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists the syntax and explains that `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
 
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 
@@ -141,17 +141,17 @@ npm run typecheck
 npm run build
 ```
 
-All **26 tests pass**, with **97.95% statement coverage**, **93.26% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
+All **37 tests pass**, with **98.05% statement coverage**, **93.51% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
 
-Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input, pending state, Clear, keypad editing, error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
+Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
 
-Browser verification used Vite with the real Go backend: precedence, parentheses, division-by-zero feedback, Clear, and recovery after deliberately stopping/restarting the backend. Desktop and 320px mobile layouts were visually checked; the mobile page has no horizontal overflow. Screenshots are linked above. Loading and timeout behavior also have automated coverage.
+Browser verification used Vite with the real Go backend: precedence, parentheses, division-by-zero feedback, Clear, and recovery after deliberately stopping/restarting the backend. The advanced controls were subsequently verified through real API requests for `2^3^2`, `sqrt(9)`, `200*10%`, and `sqrt(-1)`, including selection wrapping. Desktop and 320px mobile layouts were visually checked; the mobile page has no horizontal overflow and keypad buttons remain 52px tall. Screenshots are linked above. Loading and timeout behavior also have automated coverage.
 
 `npm run build` checks TypeScript and writes the production frontend to `frontend/dist/`. Production hosting must serve those static files and route `/api` to Go on the same origin; the Vite development server is not a production deployment. Typography loads from Google Fonts with local sans-serif fallbacks.
 
 ## Remaining delivery work
 
-Publish the repository and coverage artifacts for evaluation. The optional arithmetic operations are implemented in the backend; corresponding keypad/help updates remain frontend work. Docker remains optional future work.
+Publish the repository and coverage artifacts for evaluation. The optional arithmetic operations and their frontend controls/help are implemented. Docker remains optional future work.
 
 ## Design decisions and assumptions
 
