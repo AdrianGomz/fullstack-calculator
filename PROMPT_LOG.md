@@ -431,3 +431,54 @@ Outcome: the backend supports the documented implicit-multiplication boundaries 
 ```text
 Add support for implicit multiplication in calculator expressions, such as `4(3)`, `(2)(4)`, and `2sqrt(9)`. Treat it as explicit multiplication and division, evaluated left to right.
 ```
+
+## Prompt 35 — review backend readability and error handling
+
+Date: 2026-10-27
+Tool: Codex desktop
+Context: prompts 35–39 were added retrospectively at the user's request. Ongoing prompt logging remains paused.
+Outcome: reviewed the backend and recommended clearer HTTP helpers, separate tokenizer scanners, better unexpected-error logging, simpler test tables, server-lifecycle coverage, and a named request-body limit. Backend race tests and Go vet passed; application code was not changed during the review.
+
+```text
+Make a code review of the backend app. check for readability if we can simplify things, check the error handling, and if we can make the code more readable
+```
+
+## Prompt 36 — simplify backend HTTP handling and tokenization
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: implemented backend review items 2 and 3 by extracting request validation/body reading and calculation-error responses into helpers, and separating identifier and number scanning in the tokenizer. Preserved validation behavior, responses, and error positions. Backend race tests, Go vet, and diff validation passed.
+
+```text
+implement 2 and 3
+```
+
+## Prompt 37 — review frontend readability and error handling
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: reviewed components, editing helpers, API error handling, and tests. Reproduced a caret-position issue in the native-input fallback and a missing percentage-help reference. Recommended simpler native-input normalization, consolidated keypad definitions, and shared expression-length handling. All 277 existing tests and the TypeScript/production build passed; temporary reproduction tests were removed.
+
+```text
+ok now perform a code evaluation of the front
+```
+
+## Prompt 38 — remove missing help reference and refactor expression length
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: removed the missing `percentage-help` accessibility reference and initially introduced a shared expression-length constant and count. The expression-length refactor was subsequently rolled back at the user's request; the accessibility-reference removal and its documentation remain. All 277 tests and the TypeScript/production build passed after implementation; TypeScript checks passed after rollback.
+
+```text
+for 2 remove the reference, and implement 5
+```
+
+## Prompt 39 — consolidate keypad definitions
+
+Date: 2026-10-27
+Tool: Codex desktop
+Outcome: implemented frontend review item 4 with one typed list defining each keypad button's value, accessible label, visible symbol, and optional style variant. Simplified rendering and updated frontend documentation. All 277 frontend tests and backend tests passed locally and inside Docker; local backend race tests, Go vet, and TypeScript/production builds passed. Rebuilt the containers, passed 31 HTTP checks through Nginx, and verified browser interactions, errors, outage feedback, and recovery. Both containers were left healthy.
+
+```text
+implement 4
+```
