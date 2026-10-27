@@ -11,6 +11,23 @@ const reply = (body: unknown, ok = true) => ({ ok, json: async () => body })
 beforeEach(() => { mockFetch.mockReset(); vi.stubGlobal('fetch', mockFetch) })
 afterEach(() => vi.unstubAllGlobals())
 
+// Arrange literal expressions without replaying typed power templates. Root
+// tokens are created through the button, then their arguments are pasted.
+async function loadExpression(user: ReturnType<typeof userEvent.setup>, value: string) {
+  const field = expressionInput() as HTMLInputElement
+  await user.clear(field)
+  const root = value.indexOf('sqrt')
+  if (root < 0) {
+    await user.paste(value)
+  } else {
+    if (root) await user.paste(value.slice(0, root))
+    await user.click(screen.getByRole('button', { name: 'Square root' }))
+    field.setSelectionRange(root + 4, root + 6)
+    await user.paste(value.slice(root + 4))
+  }
+  field.setSelectionRange(value.length, value.length)
+}
+
 describe('calculator form', () => {
   it('starts at zero, submits it, and resets the expression and result on Clear', async () => {
     mockFetch.mockResolvedValue(reply({ result: 0 }))
@@ -44,7 +61,7 @@ describe('calculator form', () => {
   it.each([
     ['123', '123'], ['(2+3)', '(2+3)'], [')', ')'], ['0', '0'],
     ['+2', '0+2'], ['-2', '0-2'], ['*2', '0*2'], ['/2', '0/2'],
-    ['^2', '0^2'], ['%', '0%'], ['.5', '0.5'], ['sqrt(9)', 'sqrt(9)'],
+    ['^2', '0^(2)'], ['%', '0%'], ['.5', '0.5'],
   ])('handles keyboard entry %s after starting or clearing', async (keys, expected) => {
     const user = userEvent.setup()
     render(<App />)
@@ -104,7 +121,7 @@ describe('calculator form', () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    await user.type(field, expression)
+    await loadExpression(user, expression)
     await user.click(screen.getByRole('button', { name }))
     expect(field).toHaveValue(expected)
     await waitFor(() => {
@@ -147,11 +164,11 @@ describe('calculator form', () => {
     expect(field).toHaveValue('2+')
   })
 
-  it('preserves keyboard typing, selections, and editing within an expression', async () => {
+  it('preserves selected-text replacement and insertion within an expression', async () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    await user.type(field, '2+/')
+    await loadExpression(user, '2+/')
     expect(field).toHaveValue('2+/')
     field.setSelectionRange(2, 3)
     await user.click(screen.getByRole('button', { name: 'Multiply' }))
@@ -179,12 +196,12 @@ describe('calculator form', () => {
   })
 
   it.each([
-    ['(', 1], ['( - ', 4], ['sqrt()', 5], ['sqrt(-)', 6], ['2^()', 3], ['2^(-)', 4],
+    ['(', 1], ['(-', 2], ['sqrt()', 5], ['sqrt(-)', 6], ['2^()', 3], ['2^(-)', 4],
   ] as const)('ignores invalid keys in %s at cursor %i', async (expression, cursor) => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    fireEvent.change(field, { target: { value: expression } })
+    await loadExpression(user, expression)
     field.setSelectionRange(cursor, cursor)
     for (const name of ['Add', 'Multiply', 'Divide', 'Percentage', 'Power', 'Close parenthesis']) {
       await user.click(screen.getByRole('button', { name }))
@@ -202,12 +219,12 @@ describe('calculator form', () => {
     ['(', 1, '.', '(0.', 3], ['(-', 2, '.', '(-0.', 4],
     ['(-', 2, 'Square root', '(-sqrt()', 7], ['(-)', 2, '7', '(-7)', 3],
     ['(-)', 2, 'Subtract', '(-)', 2], ['sqrt()', 5, '9', 'sqrt(9)', 6],
-    ['2^()', 3, '9', '2^(9)', 4], ['( \t', 3, '.', '( \t0.', 5],
+    ['2^()', 3, '9', '2^(9)', 4],
   ] as const)('allows %s at %i followed by %s as %s', async (expression, cursor, name, expected, caret) => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    fireEvent.change(field, { target: { value: expression } })
+    await loadExpression(user, expression)
     field.setSelectionRange(cursor, cursor)
     await user.click(screen.getByRole('button', { name }))
     expect(field).toHaveValue(expected)
@@ -221,12 +238,12 @@ describe('calculator form', () => {
   it.each([
     ['(2+3)', 5, '(2+3)*4', 7], ['50%', 3, '50%*4', 5],
     ['sqrt(9)', 7, 'sqrt(9)*4', 9], ['2^(3)', 5, '2^(3)*4', 7],
-    ['(2) \t', 5, '(2) \t*4', 7], ['(2)+5', 3, '(2)*4+5', 5],
+    ['(2)+5', 3, '(2)*4+5', 5],
   ] as const)('inserts multiplication at %s / %i and extends the new number', async (expression, cursor, expected, caret) => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    fireEvent.change(field, { target: { value: expression } })
+    await loadExpression(user, expression)
     field.setSelectionRange(cursor, cursor)
     await user.click(screen.getByRole('button', { name: '4' }))
     expect(field).toHaveValue(expected)
@@ -265,12 +282,12 @@ describe('calculator form', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('keeps typing, paste, and selected-text replacement outside the context rules', async () => {
+  it('normalizes typed digits while keeping paste and selections literal', async () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
     await user.type(field, '(2)4')
-    expect(field).toHaveValue('(2)4')
+    expect(field).toHaveValue('(2)*4')
     await user.clear(field)
     await user.paste('50%2')
     expect(field).toHaveValue('50%2')
@@ -291,7 +308,7 @@ describe('calculator form', () => {
     mockFetch.mockResolvedValue(reply({ result }))
     const user = userEvent.setup()
     render(<App />)
-    await user.type(expressionInput(), initial)
+    await loadExpression(user, initial)
     await user.click(screen.getByRole('button', { name: digit }))
     await user.click(submitButton())
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(String(result)))
@@ -303,7 +320,7 @@ describe('calculator form', () => {
     render(<App />)
     const field = expressionInput() as HTMLInputElement
     const expression = '1'.repeat(254) + '%'
-    fireEvent.change(field, { target: { value: expression } })
+    await loadExpression(user, expression)
     field.setSelectionRange(expression.length, expression.length)
     await user.click(screen.getByRole('button', { name: '2' }))
     expect(field.value).toHaveLength(257)
@@ -329,9 +346,9 @@ describe('calculator form', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.clear(expressionInput())
-    await user.type(expressionInput(), ' 2-2 {Enter}')
+    await user.type(expressionInput(), '2-2{Enter}')
     expect(await screen.findByRole('status')).toHaveTextContent('0')
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression: ' 2-2 ' })
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression: '2-2' })
     await user.type(expressionInput(), '+1')
     expect(screen.getByRole('status')).toHaveTextContent('—')
   })
@@ -395,20 +412,20 @@ describe('calculator form', () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    await user.type(field, '(2 + 3) * 4')
+    await user.type(field, '(2+3)*4')
     field.setSelectionRange(1, 2)
     await user.click(screen.getByRole('button', { name: '7' }))
-    expect(field).toHaveValue('(7 + 3) * 4')
+    expect(field).toHaveValue('(7+3)*4')
     await waitFor(() => expect(field.selectionStart).toBe(2))
     await user.click(screen.getByRole('button', { name: 'Backspace' }))
-    expect(field).toHaveValue('( + 3) * 4')
+    expect(field).toHaveValue('(+3)*4')
   })
-  it('backspaces an entire Unicode character or a selected span', async () => {
+  it('backspaces a character or a selected span', async () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    fireEvent.change(field, { target: { value: '1💡' } })
-    field.setSelectionRange(3, 3)
+    await user.type(field, '12')
+    field.setSelectionRange(2, 2)
     await user.click(screen.getByRole('button', { name: 'Backspace' }))
     expect(field).toHaveValue('1')
     field.setSelectionRange(0, 1)
@@ -497,7 +514,7 @@ describe('calculator form', () => {
     const user = userEvent.setup()
     render(<App />)
     const field = expressionInput() as HTMLInputElement
-    await user.type(field, expression)
+    await loadExpression(user, expression)
     await user.click(submitButton())
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     await waitFor(() => expect(field.selectionStart).toBe(position))

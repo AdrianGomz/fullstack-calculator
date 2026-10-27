@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculate, CalculationError } from '../api/calculator'
-import { getOperatorReplacementStart } from '../utils/operatorSubstitution'
-import { getContextualKey } from '../utils/keypadContext'
+import useExpressionEditor from '../hooks/useExpressionEditor'
 import ExpressionInput from './ExpressionInput'
 import ResultPanel from './ResultPanel'
 import Keypad from './Keypad'
 import styles from './Calculator.module.css'
 
 export default function Calculator() {
-  const [expression, setExpression] = useState('0')
   const [result, setResult] = useState<number | null>(null)
   const [error, setError] = useState<CalculationError | null>(null)
   const [pending, setPending] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const inFlight = useRef(false)
+  const editor = useExpressionEditor(input, inFlight, () => {
+    setResult(null)
+    setError(null)
+  })
+  const { expression } = editor
 
   useEffect(() => {
     if (!error || pending || !input.current) return
@@ -29,65 +32,6 @@ export default function Calculator() {
   useEffect(() => {
     if (result !== null && !pending) input.current?.focus()
   }, [result, pending])
-
-  function update(value: string) {
-    setExpression(value)
-    setResult(null)
-    setError(null)
-  }
-
-  function insert(key: string) {
-    const field = input.current
-    if (!field || inFlight.current) return
-    if (key === 'Clear') {
-      update('0')
-      field.focus()
-      field.setSelectionRange(1, 1)
-      return
-    }
-    const replacesZero = expression === '0' && (/^[0-9()]$/.test(key) || key === 'sqrt')
-    let start = field.selectionStart ?? expression.length
-    let end = field.selectionEnd ?? expression.length
-    if (expression === '0' && key !== 'Backspace') {
-      start = replacesZero ? 0 : 1
-      end = 1
-    }
-    const contextualKey = getContextualKey(expression, key, start, end)
-    if (contextualKey === null) {
-      // Ignored keys keep feedback and selection; focus returns from the button.
-      field.focus()
-      field.setSelectionRange(start, end)
-      return
-    }
-    const replacementStart = getOperatorReplacementStart(expression, key, start, end)
-    const replacingOperator = replacementStart !== start
-    start = replacementStart
-    let next: string
-    let caret: number
-    if (key === 'sqrt' || key === '^') {
-      // A replaced operator is not a selected exponent to wrap.
-      const selected = replacesZero || replacingOperator ? '' : expression.slice(start, end)
-      const prefix = key === 'sqrt' ? 'sqrt(' : '^('
-      const template = `${prefix}${selected})`
-      next = expression.slice(0, start) + template + expression.slice(end)
-      // Empty calls place the caret inside; wrapped selections place it after.
-      caret = start + (selected ? template.length : prefix.length)
-    } else if (key === 'Backspace') {
-      // Input selection uses UTF-16 offsets; remove a whole code point.
-      const previous = [...expression.slice(0, start)].pop()?.length ?? 0
-      const from = start === end ? start - previous : start
-      next = expression.slice(0, from) + expression.slice(end)
-      caret = from
-    } else {
-      next = expression.slice(0, start) + contextualKey + expression.slice(end)
-      caret = start + contextualKey.length
-    }
-    update(next)
-    requestAnimationFrame(() => {
-      field.focus()
-      field.setSelectionRange(caret, caret)
-    })
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -125,7 +69,9 @@ export default function Calculator() {
           expression={expression}
           pending={pending}
           hasError={error !== null}
-          onChange={update}
+          onKeyPress={editor.key}
+          onInsertText={editor.text}
+          onNativeChange={editor.nativeChange}
         />
         <ResultPanel
           result={result}
@@ -133,7 +79,7 @@ export default function Calculator() {
           error={error}
           expressionLength={[...expression].length}
         />
-        <Keypad pending={pending} onKeyPress={insert} />
+        <Keypad pending={pending} onKeyPress={editor.key} />
       </form>
       <div className={styles.footer}>
         <span aria-hidden="true">⌘</span> Your keyboard works here, too.
