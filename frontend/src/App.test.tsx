@@ -90,6 +90,91 @@ describe('calculator form', () => {
     expect(field.selectionEnd).toBe(6)
   })
 
+  it.each([
+    ['2+', 'Divide', '2/', 2], ['2-', 'Multiply', '2*', 2],
+    ['2+', 'Subtract', '2-', 2], ['2-', 'Subtract', '2-', 2],
+    ['2+', 'Power', '2^()', 3], ['2^', 'Power', '2^()', 3],
+    ['2^', 'Add', '2+', 2], ['2^', 'Subtract', '2^-', 3],
+    ['2*', 'Subtract', '2*-', 3], ['2/', 'Subtract', '2/-', 3],
+    ['2*-', 'Divide', '2/', 2], ['2/-', 'Power', '2^()', 3],
+    ['2*-', 'Subtract', '2*-', 3],
+    ['50%', 'Percentage', '50%', 3], ['50%', 'Add', '50%+', 4],
+    ['2+', 'Square root', '2+sqrt()', 7],
+  ] as const)('edits %s with %s as %s and restores the caret', async (expression, name, expected, caret) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, expression)
+    await user.click(screen.getByRole('button', { name }))
+    expect(field).toHaveValue(expected)
+    await waitFor(() => {
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(caret)
+    })
+    expect(field.selectionEnd).toBe(caret)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['Add', '2^(+)', 4], ['Subtract', '2^(-)', 4],
+    ['Multiply', '2^(*)', 4], ['Divide', '2^(/)', 4],
+    ['Percentage', '2^(%)', 4], ['Power', '2^(^())', 5],
+  ] as const)('keeps existing %s insertion inside an empty power template', async (name, expected, caret) => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2')
+    await user.click(screen.getByRole('button', { name: 'Power' }))
+    await waitFor(() => expect(field.selectionStart).toBe(3))
+    await user.click(screen.getByRole('button', { name }))
+    expect(field).toHaveValue(expected)
+    await waitFor(() => expect(field.selectionStart).toBe(caret))
+  })
+
+  it('applies power substitution only after manually deleting its parentheses', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2')
+    await user.click(screen.getByRole('button', { name: 'Power' }))
+    await waitFor(() => expect(field.selectionStart).toBe(3))
+    await user.keyboard('{Delete}{Backspace}')
+    expect(field).toHaveValue('2^')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(field).toHaveValue('2+')
+  })
+
+  it('preserves keyboard typing, selections, and editing within an expression', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const field = expressionInput() as HTMLInputElement
+    await user.type(field, '2+/')
+    expect(field).toHaveValue('2+/')
+    field.setSelectionRange(2, 3)
+    await user.click(screen.getByRole('button', { name: 'Multiply' }))
+    expect(field).toHaveValue('2+*')
+    await waitFor(() => expect(field).toHaveFocus())
+    field.setSelectionRange(2, 2)
+    await user.click(screen.getByRole('button', { name: 'Divide' }))
+    expect(field).toHaveValue('2+/*')
+  })
+
+  it('submits the corrected expression and keeps stale output cleared on later edits', async () => {
+    mockFetch.mockResolvedValue(reply({ result: 1 }))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(expressionInput(), '2+')
+    await user.click(screen.getByRole('button', { name: 'Divide' }))
+    await user.click(screen.getByRole('button', { name: '2' }))
+    await user.click(submitButton())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('1'))
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ expression: '2/2' })
+    await user.type(expressionInput(), '+')
+    await user.click(screen.getByRole('button', { name: 'Multiply' }))
+    expect(expressionInput()).toHaveValue('2/2*')
+    expect(screen.getByRole('status')).toHaveTextContent('—')
+  })
+
   it('validates empty and overlong expressions without making requests', async () => {
     const user = userEvent.setup()
     render(<App />)

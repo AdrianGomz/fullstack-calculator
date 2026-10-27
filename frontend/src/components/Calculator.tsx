@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { calculate, CalculationError } from '../api/calculator'
+import { getOperatorReplacementStart } from '../utils/operatorSubstitution'
 import ExpressionInput from './ExpressionInput'
 import ResultPanel from './ResultPanel'
 import Keypad from './Keypad'
@@ -50,10 +51,14 @@ export default function Calculator() {
       start = replacesZero ? 0 : 1
       end = 1
     }
+    const replacementStart = getOperatorReplacementStart(expression, key, start, end)
+    const replacingOperator = replacementStart !== start
+    start = replacementStart
     let next: string
     let caret: number
     if (key === 'sqrt' || key === '^') {
-      const selected = replacesZero ? '' : expression.slice(start, end)
+      // A replaced operator is not a selected exponent to wrap.
+      const selected = replacesZero || replacingOperator ? '' : expression.slice(start, end)
       const prefix = key === 'sqrt' ? 'sqrt(' : '^('
       const template = `${prefix}${selected})`
       next = expression.slice(0, start) + template + expression.slice(end)

@@ -57,6 +57,8 @@ The page contains a compact “Calculator” wordmark, a centered calculator car
 
 The keypad includes Power (`xʸ`), Square root (`√`), and Percentage (`%`). Its six rows follow the documented layout, with the equals button spanning two columns. Power inserts `^()` with the cursor inside (for example, `2^()`), or wraps selected text in `^(...)`; percentage inserts `%`. Square root inserts `sqrt()` with the cursor inside, or wraps selected text in `sqrt(...)`. The input help lists the syntax and explains that `200*10% = 20`, while `200+10% = 200.1`. All operations are evaluated by Go. For example, `sqrt(16)+2^3+50%` returns `12.5`.
 
+At the end of an expression, keypad operator buttons replace incompatible or repeated trailing operators: `2+` then Divide becomes `2/`. Minus can follow multiplication, division, and bare power for negative operands; repeated Percentage stays a single `%`. The `^()` template keeps its current behavior; power substitution applies only to a bare trailing `^` after its parentheses are deleted. Keyboard typing and selected-text editing retain their existing behavior. The complete substitution table and examples are in the [frontend guide](docs/FRONTEND.md#trailing-operator-keypad-substitution).
+
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 
 ![Calculator desktop preview](docs/screenshots/desktop.png)
@@ -141,9 +143,9 @@ npm run typecheck
 npm run build
 ```
 
-All **37 tests pass**, with **98.05% statement coverage**, **93.51% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
+All **111 tests pass**, with **98.48% statement coverage**, **94.8% branch coverage**, and **100% line/function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
 
-Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
+Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, the full operator-substitution matrix, negative operands, exclusion of balanced power templates, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests do not substitute for real HTTP verification.
 
 Browser verification used Vite with the real Go backend: precedence, parentheses, division-by-zero feedback, Clear, and recovery after deliberately stopping/restarting the backend. The advanced controls were subsequently verified through real API requests for `2^3^2`, `sqrt(9)`, `200*10%`, and `sqrt(-1)`, including selection wrapping. Desktop and 320px mobile layouts were visually checked; the mobile page has no horizontal overflow and keypad buttons remain 52px tall. Screenshots are linked above. Loading and timeout behavior also have automated coverage.
 

@@ -283,3 +283,54 @@ ok i've noticed some errors and some behavior i want to change:
 1. first let's always start with a 0 in the calculator from the start or if we clear the result. if we clic any number or parenthesis we will replace this 0. if it's an operand we will keep the 0.
 2. when we click the exponentiation let's immediately add two parenthesis as we do when we use square root.
 ```
+
+## Prompt 22 — plan keypad operator substitution
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: documented a proposed substitution matrix, negative-operand exceptions, postfix percentage behavior, and interaction with empty power templates in PLAN.md for approval. Application code was not changed.
+
+```text
+now let's add this rule:
+
+if an operation ends in an operator and instead of a number we click another operator we need to substitute this operator. this are the substitutions, basically this prevent us from adding the same operand twice and avoid errors when we have some unexpected operators like "+/" that don't make sense. Note that - almost never substitude anything because we can have negative numbers. Please add this explanation and rule to the documentation.
+
+1. \+ -> +,-, \*, /, %, ^
+2. \- -> -,+, \*, /, %, ^
+3. \* -> \*,+, /, %, ^
+4. / -> /, +, \*, /, %, ^
+5. % -> %
+6. ^ -> ^, +, \*, /, %,
+
+square root does not need any substitution. Before implementing the changes please tell me the planed changes so they can be approved
+```
+
+## Prompt 23 — exclude balanced power templates from substitution
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: revised the proposed plan so power substitution applies only to a trailing bare `^` after manual removal of parentheses; balanced `^()` templates retain existing editing behavior. Application code was not changed.
+
+```text
+the ^() should not be afected this substitution of ^ only works if the user manually deletes the parenthesis
+```
+
+## Prompt 24 — review the implementation plan for operator substitution
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: restated the agreed implementation sequence, substitution matrix, negative-operand rules, exclusion of balanced power templates, documentation changes, and verification steps for approval. Application code was not changed.
+
+```text
+ok before the implementation what is the plan to follow?
+```
+
+## Prompt 25 — implement keypad operator substitution
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: implemented a pure trailing-operator substitution helper and integrated it with keypad insertion. Preserved negative operands, keyboard/selection editing, square-root behavior, and balanced power templates. Added matrix and interaction tests; all 111 frontend tests, TypeScript checks, and the production build pass. Updated documentation and generated local coverage reports (98.48% statements, 94.8% branches, 100% lines/functions).
+
+```text
+ok implement the changes
+```

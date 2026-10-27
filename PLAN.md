@@ -113,7 +113,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 37 tests pass, with 98.05% statement coverage and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 111 tests pass, with 98.48% statement coverage, 94.8% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
@@ -249,3 +249,26 @@ Docker: after the ordinary local workflow works, use a multi-stage build and eit
 - [ ] Add the actual repository URL and share it for evaluation with the prompt log.
 
 Current milestone: the full-stack calculator is implemented and verified locally. Publication and sharing the repository link remain delivery steps.
+
+## Implemented keypad operator substitution
+
+This is a frontend editing aid: when the cursor is at the end with no text selected and the expression ends in an operator, a mapped operator key replaces it. This prevents repeated operators and accidental pairs such as `+/`. Go remains responsible for validating the full expression. Keyboard typing, pasting, and edits within an expression retain their existing behavior. Trailing whitespace retains normal insertion behavior.
+
+| Existing trailing operator | Incoming keys that replace it |
+| --- | --- |
+| `+` | `+`, `-`, `*`, `/`, `%`, `^` |
+| `-` | `-`, `+`, `*`, `/`, `%`, `^` |
+| `*` | `*`, `+`, `/`, `%`, `^` |
+| `/` | `/`, `+`, `*`, `%`, `^` |
+| `%` | `%` only |
+| `^` | `^`, `+`, `*`, `/`, `%` |
+
+Examples: `2+` then Divide becomes `2/`; `2-` then Add becomes `2+`; repeated Percentage leaves `50%`. Percentage is postfix: `50%` then Add appends `+`, producing `50%+`.
+
+Minus may introduce a negative operand after multiplication, division, or power: `2*-`, `2/-`, and `2^(-)` remain possible. After plus or minus, an incoming minus replaces the existing sign as listed. If a binary operator already has a pending unary minus (`2*-`), replacing that unfinished operation with Divide should produce `2/`, avoiding `2*/`.
+
+Power substitution applies only when the expression ends in a bare `^`, such as `2^` after the user manually deletes its parentheses. The balanced `^()` template is excluded, even when the cursor is inside empty parentheses; existing insertion and caret behavior within templates remains unchanged. For example, `2^` then Add becomes `2+`, while `2^()` is not replaced by the substitution rule. Square root retains its existing insertion/wrapping behavior.
+
+Implementation: `frontend/src/utils/operatorSubstitution.ts` isolates the replacement-range decision in a pure helper. Calculator integrates it with existing insertion/caret handling. Table-driven helper tests cover the full matrix; interaction tests cover negative operands, bare power operators, exclusion of balanced power templates, selections, keyboard typing, and corrected API requests. README and the frontend review guide document the behavior. API, parser, and evaluation semantics remain unchanged.
+
+Verification of operator substitution (2026-10-26): all 111 frontend tests pass; statement coverage is 98.48%, branch coverage is 94.8%, and line/function coverage is 100%. TypeScript checks and the production build pass.

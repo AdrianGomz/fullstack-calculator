@@ -43,9 +43,6 @@ export default function ExpressionInput({ inputRef, expression, pending, hasErro
         <span id="expression-help">Use + − * / ^, sqrt(...), % and parentheses</span>
         <span className={`${styles.characterCount}${length > 256 ? ` ${styles.overLimit}` : ''}`}>{length} / 256</span>
       </div>
-      <p id="percentage-help" className={styles.hint}>
-        10% = 0.1 · 200 × 10% = 20 · 200 + 10% = 200.1
-      </p>
     </div>
   )
 }
