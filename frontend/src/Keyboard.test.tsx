@@ -107,6 +107,20 @@ describe('physical keyboard editing', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ expression })
   })
 
+  it.each([
+    ['4(3)', 12], ['(2)(4)', 8],
+  ] as const)('submits pasted implicit multiplication %s without inserting stars', async (expression, result) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ result }) })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(input())
+    await user.paste(expression)
+    expect(input()).toHaveValue(expression)
+    await user.keyboard('=')
+    expect(await screen.findByRole('status')).toHaveTextContent(String(result))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ expression })
+  })
+
   it('keeps pasted grouping literal and preserves numeric selection wrapping', async () => {
     const user = userEvent.setup()
     render(<App />)

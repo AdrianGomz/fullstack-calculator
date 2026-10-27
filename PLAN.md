@@ -113,7 +113,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 275 tests pass, with 96.69% statement coverage, 95.03% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.5%, HTTP coverage is 95.5%, and overall backend coverage is 90.1%. A five-second fuzz run passed 538,354 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 277 tests pass, with 96.69% statement coverage, 95.03% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
@@ -172,7 +172,7 @@ The request remains `{"expression":"sqrt(16)+2^3+50%"}` and the successful respo
 - Point domain errors to the beginning of `sqrt` or to `^`; retain zero-based code-point offsets.
 - Return the existing `422 NON_FINITE_RESULT` for overflow such as `2^1024`.
 - Preserve the 4096-byte request limit, 256-code-point expression limit, and 32-level parenthesis limit. Test the additional recursion from power chains and combinations with nested function calls; it must remain bounded by expression length.
-- Keep scientific notation, implicit multiplication, alternate power syntax (`**`), other function names, and complex results outside this extension.
+- That operation milestone excluded implicit multiplication; it is implemented in the later milestone below. Scientific notation, alternate power syntax (`**`), other function names, and complex results remain unsupported.
 
 #### Backend acceptance examples
 
@@ -356,3 +356,14 @@ Local verification (2026-10-27): all 261 frontend tests and the TypeScript/produ
 Docker verification: the rebuilt frontend is healthy at port 8081 and all 261 tests pass in its Linux build stage. Browser typing `2s9` produced `2*sqrt(9)` and returned `6`; `2(3+4)` produced `2*(3+4)` and returned `14`.
 
 Closing-parenthesis extension (2026-10-27): all 275 local tests and the TypeScript/production build pass. Statement coverage is 96.69%, branch coverage 95.03%, line coverage 98.55%, and function coverage 100%. Docker rebuild/testing is left to the user for this extension.
+
+
+## Backend implicit multiplication
+
+Implemented in `parseTerm` with a pure `allowsImplicitMultiplication` helper. A number can be followed by `(` or `sqrt`; `)`/`%` can be followed by a number, `(`, or `sqrt`. Other boundaries, including two adjacent number tokens and following signs, do not imply multiplication. Examples: `4(3) = 12`, `(2)(4) = 8`, `2sqrt(9) = 6`, and `50%(2) = 1`. Whitespace between allowed boundaries is ignored as before.
+
+Implicit `*` has exactly the same precedence and left associativity as explicit `*` and `/`: `6/2(1+2) = 9`. Powers retain higher precedence and right associativity. The parser reuses the existing multiplication node/evaluator, leaving the right operand token for normal parsing. It does not rewrite the expression or tokens. The implied operator's error position is the start of the right operand; `2^1023(2)` overflows at position 6. Expression length, nesting limits, syntax-before-evaluation ordering, and numeric guards are unchanged.
+
+Tests cover all accepted boundaries, rejected adjacent numbers/names/malformed input, AST shape, token preservation, original error positions, signed values, powers, percentages, maximum-length shallow products, nesting limits, and the HTTP contract. Frontend tests confirm allowed pasted arithmetic is sent unchanged. UI automatic-star insertion and letter/paste restrictions remain unchanged. The API grammar/examples, architecture guide, README, and frontend guide document the new behavior.
+
+Local verification (2026-10-27): Go race tests, `go vet`, and a standalone build pass. Coverage is 99.5% calculator, 95.5% HTTP, and 90.1% overall. A five-second fuzz run passed 538,354 executions. All 277 frontend tests and TypeScript/production build pass. Docker was not rebuilt or tested; the user handles that verification.

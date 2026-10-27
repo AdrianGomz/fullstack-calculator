@@ -42,16 +42,34 @@ func (p *parser) parseTerm() (node, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.current().kind == '*' || p.current().kind == '/' {
+	for {
 		operator := p.current()
-		p.index++
+		if operator.kind == '*' || operator.kind == '/' {
+			p.index++
+		} else if allowsImplicitMultiplication(p.tokens[p.index-1].kind, operator.kind) {
+			// Keep the right operand token for parseUnary. Anchor the implied
+			// operator there without modifying tokens or source positions.
+			operator = token{kind: '*', position: operator.position}
+		} else {
+			return left, nil
+		}
 		right, err := p.parseUnary()
 		if err != nil {
 			return nil, err
 		}
 		left = &binaryNode{operator: operator, left: left, right: right}
 	}
-	return left, nil
+}
+
+func allowsImplicitMultiplication(previous, next rune) bool {
+	switch previous {
+	case tokenNumber:
+		return next == '(' || next == tokenSqrt
+	case ')', '%':
+		return next == tokenNumber || next == '(' || next == tokenSqrt
+	default:
+		return false
+	}
 }
 
 func (p *parser) parseUnary() (node, error) {

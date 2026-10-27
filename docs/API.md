@@ -1,6 +1,6 @@
 # Calculator API
 
-Status: implemented and verified with unit tests and live HTTP checks. Expression input, precedence, parentheses, powers, square roots, postfix percentages, request validation, and the limits below are supported.
+Status: implemented with expression input, precedence, parentheses, powers, square roots, postfix percentages, implicit multiplication, request validation, and the limits below. The implicit-multiplication extension is verified with local calculator/parser/HTTP-handler tests, race checks, and fuzzing; Docker rebuild/testing is left to the user.
 
 ## Currently available endpoints
 
@@ -29,7 +29,7 @@ Require exactly one JSON object with one required, non-null string field, `expre
 
 ```text
 expression = term { ("+" | "-") term }
-term       = unary { ("*" | "/") unary }
+term       = unary { ("*" | "/" | implicit) unary }
 unary      = { "+" | "-" } power
 power      = postfix [ "^" unary ]
 postfix    = primary [ "%" ]
@@ -37,6 +37,7 @@ primary    = number | "(" expression ")" | "sqrt" "(" expression ")"
 number     = digits [ "." [ digits ] ] | "." digits
 digits     = digit { digit }
 digit      = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+implicit   = (* no source character; permitted only at a boundary below *)
 ```
 
 Braces denote repetition; brackets denote optional syntax. Require full consumption of the input after skipping permitted whitespace.
@@ -46,16 +47,28 @@ Braces denote repetition; brackets denote optional syntax. Require full consumpt
 - Accept decimals such as `12`, `12.5`, `.5`, and `5.`, including leading zeros. Scientific notation, commas, and non-ASCII digits are outside the initial grammar.
 - Parentheses override normal precedence and may nest. `sqrt(expression)` accepts a complete expression and requires parentheses; `sqrt(4+5)` is `3`.
 - Unary signs bind more tightly than multiplication/division. Chained signs are allowed: `--2` is `2`, `2--3` is `5`, and `-(2+3)` is `-5`.
-- Multiplication/division bind more tightly than addition/subtraction. Equal-precedence binary operators evaluate left to right: `8/4*2` is `4`; `10-3-2` is `5`.
+- Explicit multiplication, implicit multiplication, and division have equal precedence and bind more tightly than addition/subtraction. They evaluate left to right: `8/4*2` is `4`, and `6/2(1+2)` means `(6/2)*(1+2)` and returns `9`. Subtraction remains left-associative: `10-3-2` is `5`.
 - Powers associate right to left: `2^3^2` is `2^(3^2)` = `512`. Power binds more tightly than leading signs: `-2^2` is `-4`, while `(-2)^2` is `4`. Signed exponents are allowed: `2^-3` is `0.125`.
 - Postfix percentage converts its operand to a fraction by dividing by 100. It binds more tightly than power: `2^3%` is `2^(3/100)`, while `(2^3)%` is `0.08`. Accept one postfix `%`; reject `10%%`, but allow explicit nesting such as `(10%)%`.
 - Percentage is context-independent: `200*10%` is `20`, `200+10%` is `200.1`, and increasing 200 by ten percent requires `200*(1+10%)`. `%` does not mean modulo.
-- Multiplication must be explicit: `2(3+4)` and `(2)(3)` are invalid.
-- Reject empty input, empty/unmatched parentheses, missing operators/operands, names/functions other than `sqrt`, alternate power syntax such as `**`, and any other unsupported syntax.
+- Implicit multiplication is accepted only at the token boundaries listed below. `4(3)` is `12`, `(2)(4)` is `8`, and `2sqrt(9)` is `6`. Powers still bind more tightly: `2(3)^2` is `18`, and `2^3(4)` is `32`.
+- Reject empty input, empty/unmatched parentheses, unsupported operand adjacency, missing operands, names/functions other than `sqrt`, alternate power syntax such as `**`, and any other unsupported syntax.
+
+### Implicit multiplication boundaries
+
+| Last consumed token | Next token | Examples |
+| --- | --- | --- |
+| Number | `(` or `sqrt` | `4(3)`, `2sqrt(9)` |
+| `)` | Number, `(`, or `sqrt` | `(2)4`, `(2)(4)`, `sqrt(9)sqrt(4)` |
+| `%` | Number, `(`, or `sqrt` | `50%2`, `50%(2)`, `50%sqrt(4)` |
+
+These are token boundaries, so permitted ASCII whitespace between them does not change the operation: `4 (3)` returns `12`. Two consecutive number tokens remain invalid, including `1 2`, `1 .5`, and malformed decimals. A following `+` or `-` never starts implicit multiplication: `2-3` is subtraction, while `2(-3)` multiplies by a negative group. The function name still requires its own argument parentheses; `sqrt 9` and `2sqrt 9` are invalid. The frontend shortcut `s` is not an API function name.
+
+The frontend may still show explicit `*` when keys/buttons are used. Accepted pasted arithmetic expressions retain their original text and can use these implicit forms. Frontend paste restrictions on letters (including `sqrt`) remain unchanged; API clients can send the documented function name directly.
 
 ## Parser architecture and limits
 
-Use a Go tokenizer and recursive-descent parser to build a small expression tree, then evaluate it. Parse the entire input before arithmetic so syntax errors consistently take priority: `1/0+` is invalid syntax. Preserve token/operator source positions. Evaluate binary children left to right and stop on the first arithmetic error.
+Use a Go tokenizer and recursive-descent parser to build a small expression tree, then evaluate it. `parseTerm` recognizes allowed implicit boundaries and creates an ordinary multiplication node without consuming a nonexistent operator or rewriting the original tokens. Parse the entire input before arithmetic so syntax errors consistently take priority: `1/0+` and `2(1/0)+` are invalid syntax. Preserve token/operator source positions. Evaluate binary children left to right and stop on the first arithmetic error.
 
 Use loops for left-associative operator chains and unary signs; powers recurse to the right. Bound parenthesis recursion explicitly, including square-root arguments, and bound the remaining tree/recursion size through the 256-code-point input limit. Never invoke a general-purpose code evaluator or shell.
 
@@ -99,6 +112,8 @@ This example describes `2+`: position `2` is end of input. Positions are zero-ba
 
 Include positions for syntax, numeric-literal, nesting-limit, and arithmetic errors. Point to the offending token/operator, unexpected closing parenthesis, or end of input for a missing token/closing parenthesis. An expression-length error points to `256`, the first excess character. Omit positions for HTTP/JSON/schema errors because they do not refer to the decoded expression.
 
+An implicit multiplication node uses the first token of its right operand as its operator position. For example, overflow in `2^1023(2)` returns `422 NON_FINITE_RESULT` at position `6`, the opening parenthesis. Errors within its operands retain their own positions: `0(1/0)` reports division by zero at `/`, position `3`. The 256-code-point limit applies to the original expression, without adding characters for implied operators.
+
 | Status | Code | Condition |
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | Empty/malformed JSON, missing/unknown/duplicate fields, case variants, null/non-string expression, non-object body, or trailing JSON. |
@@ -119,7 +134,7 @@ Validation order: method, content type, bounded body reading, JSON/schema checks
 
 ## Example calls
 
-These examples were verified against the built backend over HTTP.
+Examples for the local backend. The implicit-multiplication cases are covered by local HTTP-handler tests; restart/rebuild the backend before trying them against an already-running instance.
 
 Mixed operations — expected `200`, `{"result":6.25}`:
 
@@ -135,6 +150,22 @@ Parentheses — expected `200`, `{"result":2.5}`:
 curl -i http://localhost:8080/api/v1/calculate \
   -H 'Content-Type: application/json' \
   -d '{"expression":"(2+3+5)/4"}'
+```
+
+Implicit multiplication — expected `200`, `{"result":12}`:
+
+```bash
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"4(3)"}'
+```
+
+Adjacent groups — expected `200`, `{"result":8}`:
+
+```bash
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"(2)(4)"}'
 ```
 
 Computed zero divisor — expected `422`, `DIVISION_BY_ZERO`, position `2`:
@@ -203,7 +234,17 @@ curl -i http://localhost:8080/api/v1/calculate \
 | `()` | `INVALID_EXPRESSION`, position `1` |
 | `(2+3` | `INVALID_EXPRESSION`, position `4` |
 | `2+3)` | `INVALID_EXPRESSION`, position `3` |
-| `2(3+4)` | `INVALID_EXPRESSION`, position `1` |
+| `4(3)` | `12` |
+| `(2)(4)` | `8` |
+| `2(3+4)` | `14` |
+| `(2)4` | `8` |
+| `2sqrt(9)` | `6` |
+| `sqrt(4)2` | `4` |
+| `50%(2)` | `1` |
+| `6/2(1+2)` | `9` |
+| `2(3)^2` | `18` |
+| `2^1023(2)` | `NON_FINITE_RESULT`, position `6` |
+| `2(1/0)+` | `INVALID_EXPRESSION`, position `7` |
 | `2+` | `INVALID_EXPRESSION`, position `2` |
 | `2**3` | `INVALID_EXPRESSION`, position `2` |
 | `1 2` | `INVALID_EXPRESSION`, position `2` |

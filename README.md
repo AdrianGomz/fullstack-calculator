@@ -2,7 +2,7 @@
 
 A React + TypeScript calculator backed by a Go REST service.
 
-**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, exponentiation (`^`), square root (`sqrt(...)`), postfix percentage (`%`), unary signs, decimals, and nested parentheses. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The responsive frontend supports keyboard entry, an on-screen keypad, positioned errors, loading feedback, and API failure recovery.
+**Current status:** the Go backend evaluates expressions with addition, subtraction, multiplication, division, exponentiation (`^`), square root (`sqrt(...)`), postfix percentage (`%`), unary signs, decimals, nested parentheses, and implicit multiplication such as `4(3)` or `(2)(4)`. It validates requests, returns positioned errors, and includes a health check, configurable port, and graceful shutdown. The responsive frontend supports keyboard entry, an on-screen keypad, positioned errors, loading feedback, and API failure recovery.
 
 ## Documentation
 
@@ -63,7 +63,7 @@ After an opening parenthesis, typed/keypad entry allows digits, Square root, Min
 
 Type only `0-9`, `+ - * / ^ % ( ) .`. Press lowercase `s` to perform the same Square root action as `√`; other unsupported typed characters, including other letters and spaces, are ignored. Both `s` and `√` insert `sqrt()` or wrap selected text; their numeric arguments remain editable. Typing `^` inserts `^()` just like Power. Enter and a typed `=` calculate; navigation, selection, copy/cut/paste, Backspace, and Delete remain available. There is no custom undo/redo support.
 
-Pastes and plain-text drops containing any forbidden character are rejected entirely, including `sqrt(...)`, `√`, and whitespace. Accepted arithmetic text is inserted literally, preserving precedence: pasting `2^3+4` keeps it unchanged rather than adding power parentheses. The backend validates complete pasted expressions. See [keyboard and clipboard details](docs/FRONTEND.md#physical-keyboard-clipboard-and-browser-input).
+Pastes and plain-text drops containing any forbidden character are rejected entirely, including `sqrt(...)`, `√`, and whitespace. Accepted arithmetic text is inserted literally, preserving precedence: pasting `2^3+4` keeps it unchanged rather than adding power parentheses. The updated backend also evaluates literal pasted forms such as `4(3)` and `(2)(4)`. Typed/keypad entry continues showing its automatically inserted `*`. The backend validates complete pasted expressions. See [keyboard and clipboard details](docs/FRONTEND.md#physical-keyboard-clipboard-and-browser-input).
 
 Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/screenshots/mobile.png).
 
@@ -73,7 +73,7 @@ Screenshots: [desktop](docs/screenshots/desktop.png) · [320px mobile](docs/scre
 
 The [Docker implementation](PLAN.md#docker-implementation) uses two containers: Nginx serving the built React app, and the Go API on a private Compose network. Nginx forwards `/api/` and `/health` to Go, so the browser uses one address. Compose services can reach each other by name on the default network. See [Docker's networking documentation](https://docs.docker.com/compose/how-tos/networking/).
 
-**Verified on 2026-10-27:** images build from source and both services pass their health checks on Docker Desktop 4.97.0 / Engine 29.9.2 / Compose 5.6.1 (Linux ARM64). The Go tests and all 261 frontend tests also pass inside the Linux build stages. Published base-image manifests support AMD64 as well; execution on AMD64 was not tested. The latest root/group insertion change after `)` is verified locally only; rebuild the frontend image to try it in Docker.
+**Verified on 2026-10-27:** images build from source and both services pass their health checks on Docker Desktop 4.97.0 / Engine 29.9.2 / Compose 5.6.1 (Linux ARM64). The Go tests and all 261 frontend tests also pass inside the Linux build stages. Published base-image manifests support AMD64 as well; execution on AMD64 was not tested. Newer multiplication-rule changes, including backend implicit multiplication, are verified locally only; rebuild the app images to try them in Docker.
 
 ### Prerequisites
 
@@ -176,7 +176,7 @@ curl -i http://localhost:8080/api/v1/calculate \
 
 Expected: HTTP `200`, JSON `{"result":20}`.
 
-Precedence is respected: `2+3+5/4` returns `6.25`, while `(2+3+5)/4` returns `2.5`. A single number is also a valid expression. Multiplication must be explicit, so use `2*(3+4)`.
+Precedence is respected: `2+3+5/4` returns `6.25`, while `(2+3+5)/4` returns `2.5`. A single number is also a valid expression. The backend also accepts implicit multiplication: `4(3)` returns `12`, `(2)(4)` returns `8`, and `2sqrt(9)` returns `6`. Implicit multiplication has the same precedence as explicit `*` and `/`, evaluated left to right: `6/2(1+2)` returns `9`. The API guide lists all allowed boundaries; two adjacent numbers such as `1 2` remain invalid.
 
 For `10/(3-3)`, the API returns HTTP `422`:
 
@@ -208,9 +208,11 @@ go vet ./...
 
 Tests cover tokenization, tree structure, precedence, associativity, nested parentheses, unary signs, decimals, error positions, numeric guards, request validation, input limits, routing, and port configuration. Coverage files are generated locally and ignored by Git.
 
-Verified on Go 1.25.4: `go test -race ./... -coverprofile=coverage.out`, `go vet ./...`, and the standalone build pass. Statement coverage is **89.8% overall**, **99.4% for the calculator package**, and **95.5% for HTTP**. The server entry point/lifecycle is checked separately over HTTP rather than included in unit-test coverage.
+Verified on Go 1.25.4: `go test -race ./... -coverprofile=coverage.out`, `go vet ./...`, and the standalone build pass. Statement coverage is **90.1% overall**, **99.5% for the calculator package**, and **95.5% for HTTP**. The server entry point/lifecycle is checked separately over HTTP rather than included in unit-test coverage.
 
-The latest five-second fuzz run completed **525,169 executions** without failures. A live test against the updated backend verified health, twelve calculations (including all new operations), seven positioned errors, and clean SIGTERM shutdown. The frontend was subsequently checked against the real backend in a browser; see frontend verification below.
+The latest five-second fuzz run completed **538,354 executions** without failures. An earlier live test verified health, twelve calculations (including all new operations), seven positioned errors, and clean SIGTERM shutdown. The frontend was subsequently checked against the real backend in a browser; see frontend verification below.
+
+The implicit-multiplication extension passed local calculator/parser/HTTP-handler tests with the race detector, `go vet`, and a standalone build. Error positions are preserved, including overflow at the implicit right operand in `2^1023(2)`. The tokenizer and numeric evaluator were unchanged. Docker was not rebuilt or tested for this extension.
 
 To repeat the short fuzz check from `backend/`:
 
@@ -236,7 +238,7 @@ npm run typecheck
 npm run build
 ```
 
-All **275 tests pass**, with **96.69% statement coverage**, **95.03% branch coverage**, **98.55% line coverage**, and **100% function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
+All **277 tests pass**, with **96.69% statement coverage**, **95.03% branch coverage**, **98.55% line coverage**, and **100% function coverage** across application/client code. Coverage includes untested source files, excluding tests, test setup, and the bootstrap entry point. HTML and LCOV reports are generated in `frontend/coverage/` and ignored by Git.
 
 Tests exercise the actual API client with controlled fetch responses: request shape, finite results, malformed responses, errors/positions, connectivity and timeout behavior. Component tests cover Enter submission, empty/overlong input (including after template insertion), pending state, Clear, keypad editing, square-root wrapping and cursor placement, the full operator-substitution matrix, negative operands, opening-parenthesis guards, multiplication before digit keys after `)`/`%` and root/group entry after numbers or closing parentheses, template preservation, exact advanced-operation requests, domain-error selection, retry, and stale-output clearing. These unit tests also cover physical-keyboard/keypad parity, forbidden-character and paste/drop rejection, virtual-keyboard input fallbacks, and native editing controls. These checks do not substitute for real HTTP verification.
 
