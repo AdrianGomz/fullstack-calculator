@@ -334,3 +334,28 @@ Outcome: implemented a pure trailing-operator substitution helper and integrated
 ```text
 ok implement the changes
 ```
+
+## Prompt 26 — plan parentheses guards and multiplication before numbers
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: documented a proposal for keypad operand guards after opening parentheses and explicit multiplication before digits following closing parentheses or percentage. Included template/cursor behavior, interaction with unary minus/substitution, and proposed decimal/nested-group compatibility choices for review. Application code was not changed.
+
+```text
+let's now implement this rule:
+
+1. after an open parenthesis we can add a number, a square root or a -. other operants should not be added.
+2. after a closed parenthesis or a % if we click a number we should add a \* sign and then the number.
+
+First let's focus on the plan for review before the implementation
+```
+
+## Prompt 27 — implement parentheses guards and multiplication before numbers
+
+Date: 2026-10-26
+Tool: Codex desktop
+Outcome: added a pure keypad-context helper and integrated it before operator substitution. Guarded empty parentheses and pending negative signs, supported nested groups and fractional entry, and inserted explicit multiplication before digits following `)` or `%`. Preserved typing, paste, selected-text editing, cursor placement, and feedback on ignored keys. Updated documentation; all 163 frontend tests, TypeScript checks, and the production build pass. Local coverage reports show 98.69% statements, 95.48% branches, and 100% lines/functions.
+
+```text
+ok continue with the implementation
+```

@@ -113,7 +113,7 @@ The core target is about 3 hours 5 minutes, with a maximum budget of 4 hours. If
 | Coverage | Save Go text/HTML coverage and frontend text/HTML coverage. Review arithmetic and error branches and record actual measured figures; no coverage percentage is prescribed by the assignment. |
 | Build and static checks | Frontend production build and TypeScript checking; `go test ./...` and `go vet ./...`. |
 
-Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 111 tests pass, with 98.48% statement coverage, 94.8% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
+Backend unit tests pass with the race detector; build and `go vet` pass. Calculator coverage is 99.4%, HTTP coverage is 95.5%, and overall backend coverage is 89.8%. A five-second fuzz run passed 525,169 executions. A live HTTP check verified expression results, positioned errors, request limits/validation, and shutdown. Frontend: 163 tests pass, with 98.69% statement coverage, 95.48% branch coverage, and a successful TypeScript/production build. Browser checks against the real backend cover results, errors, outage recovery, and desktop/320px mobile layout.
 
 ## Optional features
 
@@ -215,7 +215,7 @@ Use a single four-column keypad with six rows: parentheses/Clear/Backspace; powe
 Implemented source changes:
 
 - `Keypad.tsx`: render the six-row keypad with explicit accessible names and the appropriate editing actions; keep all arithmetic on the backend.
-- `Calculator.tsx`: extend insertion for balanced power/square-root templates, selection wrapping, and initial/cleared-zero behavior, restoring focus/cursor after React updates. Keep insertion literal: no automatic multiplication, calculation, or rewriting of the remaining expression.
+- `Calculator.tsx`: extend insertion for balanced power/square-root templates, selection wrapping, and initial/cleared-zero behavior, restoring focus/cursor after React updates. Keep template insertion literal; the later context-editing milestone below adds explicit multiplication before digit keys after `)` or `%`. Evaluation remains on the backend.
 - `ExpressionInput.tsx`: update help to list `^`, `sqrt(...)`, and `%`. Add concise percentage guidance: `10% = 0.1`; `200*10% = 20`, while `200+10% = 200.1`. Keep the existing character-count limit and accessible help relationships.
 - CSS Modules: `Keypad.module.css` owns the four-column grid and two-column equals key; `ExpressionInput.module.css` owns wrapping help text. Other components have matching modules, while `styles.css` retains only shared base styles and theme variables.
 - Existing API client and ResultPanel continue to use the same request, finite result validation, loading state, and positioned server errors. No new React component or custom hook is required.
@@ -267,8 +267,20 @@ Examples: `2+` then Divide becomes `2/`; `2-` then Add becomes `2+`; repeated Pe
 
 Minus may introduce a negative operand after multiplication, division, or power: `2*-`, `2/-`, and `2^(-)` remain possible. After plus or minus, an incoming minus replaces the existing sign as listed. If a binary operator already has a pending unary minus (`2*-`), replacing that unfinished operation with Divide should produce `2/`, avoiding `2*/`.
 
-Power substitution applies only when the expression ends in a bare `^`, such as `2^` after the user manually deletes its parentheses. The balanced `^()` template is excluded, even when the cursor is inside empty parentheses; existing insertion and caret behavior within templates remains unchanged. For example, `2^` then Add becomes `2+`, while `2^()` is not replaced by the substitution rule. Square root retains its existing insertion/wrapping behavior.
+Power substitution applies only when the expression ends in a bare `^`, such as `2^` after the user manually deletes its parentheses. The balanced `^()` template is excluded, even when the cursor is inside empty parentheses; the context guards below now govern allowed keys there. For example, `2^` then Add becomes `2+`, while `2^()` is not replaced by the substitution rule. Square root retains its existing insertion/wrapping behavior.
 
 Implementation: `frontend/src/utils/operatorSubstitution.ts` isolates the replacement-range decision in a pure helper. Calculator integrates it with existing insertion/caret handling. Table-driven helper tests cover the full matrix; interaction tests cover negative operands, bare power operators, exclusion of balanced power templates, selections, keyboard typing, and corrected API requests. README and the frontend review guide document the behavior. API, parser, and evaluation semantics remain unchanged.
 
 Verification of operator substitution (2026-10-26): all 111 frontend tests pass; statement coverage is 98.48%, branch coverage is 94.8%, and line/function coverage is 100%. TypeScript checks and the production build pass.
+
+## Implemented keypad parentheses and number-entry rules
+
+Apply these rules to keypad clicks with a collapsed selection, using the input cursor's context rather than only the end of the whole expression. Inspect the preceding non-whitespace character. Keyboard typing, pasting, and selected-text editing retain their existing behavior; Go still validates the complete expression.
+
+1. After `(`, allow digits, Square root, and unary Minus. Ignore Add, Multiply, Divide, Percentage, and Power. Apply this inside ordinary grouping, `sqrt()`, and `^()` without removing or replacing their parentheses. An ignored key preserves text, result/error feedback, and caret, returning focus to the input. Allow another `(` for nested grouping and make Decimal insert `0.` to begin a fractional number; block Close parenthesis while the group is empty.
+2. Preserve this operand expectation after a minus directly following `(`: repeated Minus keeps one sign, and other arithmetic operators cannot replace it and create an invalid opening such as `(/`. Allow numbers, square root, nested grouping, and decimal entry; block Close parenthesis until an operand exists. This local guard takes precedence over the trailing-operator substitution table.
+3. When a digit is inserted immediately after `)` or `%`, insert `*` before that digit and place the caret after it. Examples: `(2+3)` then `4` becomes `(2+3)*4`; `50%` then `2` becomes `50%*2`; `sqrt(9)` then `2` becomes `sqrt(9)*2`. Further digits extend that number without another multiplication sign. Preserve text after the cursor. This rule is limited to digit keys; it does not introduce automatic multiplication for Square root or Open parenthesis.
+
+Implementation: `frontend/src/utils/keypadContext.ts` provides a pure context-editing helper. Calculator runs its guard before operator substitution and reuses its existing insertion/template/caret handling. The substitution matrix is intact for other contexts. Helper and component tests cover allowed/blocked keys, minus and decimal/nested-group cases, both templates, automatic multiplication, cursor/selection behavior, whitespace, and exact submitted expressions. README and the frontend guide describe the rules. Backend grammar and API remain unchanged because the frontend sends an explicit `*`.
+
+Verification of parentheses/number-entry rules (2026-10-26): all 163 frontend tests pass; statement coverage is 98.69%, branch coverage is 95.48%, and line/function coverage is 100%. TypeScript checks and the production build pass.
